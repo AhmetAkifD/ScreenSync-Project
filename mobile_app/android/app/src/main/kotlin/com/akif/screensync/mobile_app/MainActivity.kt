@@ -14,6 +14,8 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pManager.PeerListListener
+import android.net.wifi.WpsInfo
+import android.net.wifi.p2p.WifiP2pConfig
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.akif.screensync/stream"
@@ -79,6 +81,9 @@ class MainActivity: FlutterActivity() {
                 "startDiscovery" -> {
                     startDiscovery(result)
                 }
+                "connect" -> {
+                    connectToPC(result)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -110,6 +115,31 @@ class MainActivity: FlutterActivity() {
             }
             override fun onFailure(reasonCode: Int) {
                 result.error("HATA", "Arama başlatılamadı: $reasonCode", null)
+            }
+        })
+    }
+    @RequiresApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
+    private fun connectToPC(result: MethodChannel.Result) {
+        if (peers.isEmpty()) {
+            result.error("HATA", "Önce arama yapıp PC'yi bulmalısın!", null)
+            return
+        }
+
+        // Listede bulduğumuz ilk cihaza (Yani senin bilgisayarına) bağlanıyoruz
+        val device = peers[0]
+        val config = WifiP2pConfig()
+        config.deviceAddress = device.deviceAddress
+        config.wps.setup = WpsInfo.PBC // Standart buton basma yöntemiyle eşleş
+
+        manager.connect(mChannel, config, object : WifiP2pManager.ActionListener {
+            override fun onSuccess() {
+                println("--- BAĞLANTI İSTEĞİ GÖNDERİLDİ: ${device.deviceName} ---")
+                result.success("Bağlantı isteği PC'ye iletildi")
+            }
+
+            override fun onFailure(reasonCode: Int) {
+                println("--- BAĞLANTI İSTEĞİ BAŞARISIZ (Kod: $reasonCode) ---")
+                result.error("HATA", "Bağlanılamadı: $reasonCode", null)
             }
         })
     }

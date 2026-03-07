@@ -23,6 +23,10 @@ class ScreenSyncApp extends StatelessWidget {
                 onPressed: _startDiscovery,
                 child: const Text('PC Ara (Wi-Fi Direct)'),
               ),
+              ElevatedButton(
+                onPressed: _connectToPC,
+                child: const Text('Bulunan PC\'ye Bağlan'),
+              ),
             ],
           ),
         ),
@@ -57,6 +61,14 @@ class ScreenSyncApp extends StatelessWidget {
       }
     } else {
       print("Gerekli izinler verilmediği için arama başlatılamıyor.");
+    }
+  }
+  Future<void> _connectToPC() async {
+    try {
+      final String result = await platform.invokeMethod('connect');
+      print(result);
+    } on PlatformException catch (e) {
+      print("Bağlantı hatası: ${e.message}");
     }
   }
 }

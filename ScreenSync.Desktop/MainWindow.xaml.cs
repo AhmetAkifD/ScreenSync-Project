@@ -19,20 +19,26 @@ namespace ScreenSync.Desktop
     /// </summary>
     public partial class MainWindow : Window
     {
+        private WiFiDirectAdvertisementPublisher _publisher;
+        private WiFiDirectConnectionListener _listener; // Bağlantıları dinleyecek nesne
+        private WiFiDirectDevice _connectedDevice;      // Bağlanan cihazı tutacağımız nesne
         public MainWindow()
         {
             InitializeComponent();
         }
-        private WiFiDirectAdvertisementPublisher _publisher;
         private void BtnStartDiscovery_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                _publisher = new WiFiDirectAdvertisementPublisher();
+                // 1. Kapıcıyı (Listener) oluştur ve kapı çaldığında ne yapacağını söyle
+                _listener = new WiFiDirectConnectionListener();
+                _listener.ConnectionRequested += OnConnectionRequested;
 
-                // KRİTİK AYAR: PC'yi diğer cihazlar için taranabilir/keşfedilebilir yapar.
+                // 2. Yayıncı ayarları
+                _publisher = new WiFiDirectAdvertisementPublisher();
                 _publisher.Advertisement.ListenStateDiscoverability = WiFiDirectAdvertisementListenStateDiscoverability.Normal;
                 _publisher.Advertisement.IsAutonomousGroupOwnerEnabled = true;
+
                 _publisher.StatusChanged += (s, args) => {
                     // Durumu hem Visual Studio Output'a hem de UI'a basalım
                     Debug.WriteLine($"[WiFiDirect] Durum: {args.Status}");
@@ -56,6 +62,26 @@ namespace ScreenSync.Desktop
             catch (Exception ex)
             {
                 MessageBox.Show($"Hata oluştu: {ex.Message}");
+            }
+        }
+        // Telefon bağlantı isteği gönderdiğinde burası tetiklenecek
+        private async void OnConnectionRequested(WiFiDirectConnectionListener sender, WiFiDirectConnectionRequestedEventArgs args)
+        {
+            var request = args.GetConnectionRequest();
+            Debug.WriteLine($"[WiFiDirect] KAPIDA BİRİ VAR: {request.DeviceInformation.Name}");
+
+            try
+            {
+                // Bağlantıyı kabul et ve cihazı içeri al
+                _connectedDevice = await WiFiDirectDevice.FromIdAsync(request.DeviceInformation.Id);
+
+                Dispatcher.Invoke(() => {
+                    MessageBox.Show($"{request.DeviceInformation.Name} başarıyla bağlandı!", "Bağlantı Kuruldu");
+                });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[WiFiDirect] Bağlantı reddedildi veya hata: {ex.Message}");
             }
         }
     }
