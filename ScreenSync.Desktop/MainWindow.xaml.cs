@@ -118,8 +118,9 @@ namespace ScreenSync.Desktop
             Core.Initialize();
             _libVLC = new LibVLC();
             _libVLC.Log += (sender, e) => {
-                // Sadece hata ve uyarıları görelim ki ekran spam dolmasın (Debug mesajlarını eliyoruz)
-                    System.Diagnostics.Debug.WriteLine($"[VLC LOG] {e.Level}: {e.Message}");
+                // Log şelalesini kapatıyoruz ki işlemciyi yormasın. Sadece hataları görelim.
+                if (e.Level == LibVLCSharp.Shared.LogLevel.Error)
+                    System.Diagnostics.Debug.WriteLine($"[VLC ERROR] {e.Message}");
             };
             _mediaPlayer = new LibVLCSharp.Shared.MediaPlayer(_libVLC);
 
@@ -134,9 +135,12 @@ namespace ScreenSync.Desktop
 
 
             // HAYAT KURTARAN AYARLAR:
-            media.AddOption(":demux=h264"); // Gelen verinin ham NAL Unit olduğunu söylüyoruz
-            media.AddOption(":network-caching=300"); // Gecikmeyi (latency) minimuma indirmek için önbelleği çok küçültüyoruz
+            media.AddOption(":demux=h264");
+            media.AddOption(":network-caching=0"); // Buffer'ı SIFIRLADIK
+            media.AddOption(":live-caching=0");
             media.AddOption(":clock-jitter=0");
+            media.AddOption(":drop-late-frames"); // Geç kalan paketi bekleme, direkt at
+            media.AddOption(":skip-frames"); // Gerekirse kare atla ama anı yakala
 
             _mediaPlayer.Play(media);
             System.Diagnostics.Debug.WriteLine("[VLC] Video dinleyicisi 50000 portunda başlatıldı.");

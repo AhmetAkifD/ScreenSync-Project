@@ -242,7 +242,15 @@ class MainActivity: FlutterActivity() {
             format.setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
             format.setInteger(MediaFormat.KEY_FRAME_RATE, fps)
             format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1) // Saniyede 1 Keyframe (Anahtar Kare)
-
+            // YENİ: Sıfır Gecikme Optimizasyonları
+            // B-Frame'leri iptal ediyoruz (Android 10 ve üstü)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                format.setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0)
+            }
+            // İşletim sistemini donanımsal düşük gecikme moduna zorluyoruz (Android 11 ve üstü)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
+            }
             encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
             encoder?.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
 
