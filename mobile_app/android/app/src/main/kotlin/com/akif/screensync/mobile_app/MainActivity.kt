@@ -20,12 +20,24 @@ import android.net.wifi.p2p.WifiP2pConfig
 import androidx.annotation.RequiresPermission
 import android.media.projection.MediaProjection
 import android.app.Activity
+import android.media.MediaCodec
+import android.media.MediaCodecInfo
+import android.media.MediaFormat
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.InetAddress
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.akif.screensync/stream"
     private val REQUEST_CODE_CAPTURE = 1001
     private val peers = mutableListOf<WifiP2pDevice>()
     private lateinit var projectionManager: MediaProjectionManager
     private var mediaProjection: MediaProjection? = null
+    private var encoder: MediaCodec? = null
+    private var virtualDisplay: VirtualDisplay? = null
+    private var isStreaming = false
+    private var udpSocket: DatagramSocket? = null
 
     @RequiresApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
     private val peerListListener = PeerListListener { peerList ->
@@ -119,6 +131,7 @@ class MainActivity: FlutterActivity() {
                     try {
                         mediaProjection = projectionManager.getMediaProjection(resultCode, data)
                         println("--- EKRAN YAKALAMA İZNİ ALINDI VE SERVİS BAŞLADI ---")
+                        startVideoStreaming() // YENİ: İzni aldığımız an akışı başlat
                     } catch (e: Exception) {
                         println("MediaProjection Hatası: ${e.message}")
                     }
@@ -133,14 +146,12 @@ class MainActivity: FlutterActivity() {
         super.onDestroy()
         unregisterReceiver(receiver)
     }
-    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
     private fun requestScreenCapture() {
         val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         // Sistemden izin isteme ekranını başlatıyoruz
         startActivityForResult(manager.createScreenCaptureIntent(), CAPTURE_CODE)
     }
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.NEARBY_WIFI_DEVICES])
-    @RequiresApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
     private fun startDiscovery(result: MethodChannel.Result) {
         manager.discoverPeers(mChannel, object : WifiP2pManager.ActionListener {
             override fun onSuccess() {
@@ -152,7 +163,6 @@ class MainActivity: FlutterActivity() {
         })
     }
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.NEARBY_WIFI_DEVICES])
-    @RequiresApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
     private fun connectToPC(result: MethodChannel.Result) {
         if (peers.isEmpty()) {
             result.error("HATA", "Önce arama yapıp PC'yi bulmalısın!", null)
@@ -198,5 +208,105 @@ class MainActivity: FlutterActivity() {
                 println("UDP Gönderme Hatası: ${e.message}")
             }
         }.start()
+    }
+    private fun startVideoStreaming() {
+        // Çözünürlük ve kalite ayarları
+        val width = 720
+        val height = 1280
+        val dpi = resources.displayMetrics.densityDpi
+        val bitrate = 2000000 // 2 Mbps
+        val fps = 30
+
+        try {
+            // YENİ EKLENEN KISIM: Android 14 Callback Zorunluluğu
+            // Sistemi dinliyoruz, kullanıcı yayını keserse kaynakları temizleyeceğiz
+            mediaProjection?.registerCallback(object : MediaProjection.Callback() {
+                override fun onStop() {
+                    super.onStop()
+                    isStreaming = false
+                    println("--- EKRAN PAYLAŞIMI SİSTEM/KULLANICI TARAFINDAN DURDURULDU ---")
+
+                    try {
+                        encoder?.stop()
+                        encoder?.release()
+                        virtualDisplay?.release()
+                    } catch (e: Exception) {
+                        println("Kaynak temizleme hatası: ${e.message}")
+                    }
+                }
+            }, null)
+
+            // 1. H.264 Encoder Ayarları
+            val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height)
+            format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+            format.setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
+            format.setInteger(MediaFormat.KEY_FRAME_RATE, fps)
+            format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1) // Saniyede 1 Keyframe (Anahtar Kare)
+
+            encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+            encoder?.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+
+            // 2. Encoder'ın giriş kapısını alıyoruz ve başlatıyoruz
+            val inputSurface = encoder?.createInputSurface()
+            encoder?.start()
+
+            // 3. Ekran piksellerini Encoder'a yönlendiren Sanal Ekranı kuruyoruz
+            virtualDisplay = mediaProjection?.createVirtualDisplay(
+                "ScreenSync",
+                width, height, dpi,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                inputSurface, null, null
+            )
+
+            isStreaming = true
+            println("--- ENCODER BAŞLADI, VİDEO AKIŞI HAZIR ---")
+
+            // 4. Çıkan verileri okuyup UDP'den gönderecek işçiyi (Thread) başlatıyoruz
+            Thread { streamVideoData() }.start()
+
+        } catch (e: Exception) {
+            println("Encoder Hatası: ${e.message}")
+        }
+    }
+
+    private fun streamVideoData() {
+        try {
+            udpSocket = DatagramSocket()
+            val pcIpAddress = "192.168.137.1"
+            val serverAddress = InetAddress.getByName(pcIpAddress)
+            val port = 50000
+
+            val bufferInfo = MediaCodec.BufferInfo()
+
+            while (isStreaming) {
+                // Sıkıştırılmış bir paket var mı diye soruyoruz
+                val outputBufferIndex = encoder?.dequeueOutputBuffer(bufferInfo, 10000) ?: -1
+
+                if (outputBufferIndex >= 0) {
+                    val outputBuffer = encoder?.getOutputBuffer(outputBufferIndex)
+
+                    if (outputBuffer != null && bufferInfo.size > 0) {
+                        // Sıkıştırılmış veriyi (H.264 NAL Unit) okuyoruz
+                        val chunk = ByteArray(bufferInfo.size)
+                        outputBuffer.position(bufferInfo.offset)
+                        outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
+                        outputBuffer.get(chunk)
+
+                        try {
+                            // Veriyi UDP tüneline fırlatıyoruz
+                            val packet = DatagramPacket(chunk, chunk.size, serverAddress, port)
+                            udpSocket?.send(packet)
+                            println("🎥 Video Paketi Fırlatıldı -> Boyut: ${chunk.size} byte")
+                        } catch (e: Exception) {
+                            println("UDP Gönderim Hatası: ${e.message}")
+                        }
+                    }
+                    // Tamponu (Buffer) boşaltıp Encoder'a geri veriyoruz ki yeni kareyi yazabilsin
+                    encoder?.releaseOutputBuffer(outputBufferIndex, false)
+                }
+            }
+        } catch (e: Exception) {
+            println("Yayın Döngüsü Hatası: ${e.message}")
+        }
     }
 }
