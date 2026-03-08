@@ -18,11 +18,14 @@ import android.net.wifi.p2p.WifiP2pManager.PeerListListener
 import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.WifiP2pConfig
 import androidx.annotation.RequiresPermission
-
+import android.media.projection.MediaProjection
+import android.app.Activity
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.akif.screensync/stream"
     private val REQUEST_CODE_CAPTURE = 1001
     private val peers = mutableListOf<WifiP2pDevice>()
+    private lateinit var projectionManager: MediaProjectionManager
+    private var mediaProjection: MediaProjection? = null
 
     @RequiresApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
     private val peerListListener = PeerListListener { peerList ->
@@ -44,6 +47,7 @@ class MainActivity: FlutterActivity() {
     }
 
     private val receiver = object : BroadcastReceiver() {
+        @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.NEARBY_WIFI_DEVICES])
         @RequiresApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
         override fun onReceive(context: Context, intent: Intent) {
             val action: String? = intent.action
@@ -58,12 +62,12 @@ class MainActivity: FlutterActivity() {
     private val intentFilter = IntentFilter()
     private val CAPTURE_CODE = 1001
 
-
     @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
         manager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
+        projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         mChannel = manager.initialize(this, mainLooper, null)
 
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
@@ -96,24 +100,44 @@ class MainActivity: FlutterActivity() {
             }
         }
     }
+    @RequiresApi(Build.VERSION_CODES.O)
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        // Bizim gönderdiğimiz 1001 kodlu ekran yakalama isteği mi dönmüş?
+        if (requestCode == REQUEST_CODE_CAPTURE) {
+            if (resultCode == Activity.RESULT_OK && data != null) {
+                // Servisi başlatıyoruz
+                val serviceIntent = Intent(this, ScreenCaptureService::class.java)
+                startForegroundService(serviceIntent)
+
+                // YENİ: Yarış Durumu (Race Condition) Çözümü
+                // startForegroundService asenkron olduğu için servisin ayağa kalkıp
+                // startForeground komutunu işlemesini beklememiz gerekiyor.
+                // Aksi takdirde Android 14 anında çöktürür.
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    try {
+                        mediaProjection = projectionManager.getMediaProjection(resultCode, data)
+                        println("--- EKRAN YAKALAMA İZNİ ALINDI VE SERVİS BAŞLADI ---")
+                    } catch (e: Exception) {
+                        println("MediaProjection Hatası: ${e.message}")
+                    }
+                }, 500) // Servise ayağa kalkması için 500 milisaniye (yarım saniye) süre veriyoruz
+
+            } else {
+                println("--- KULLANICI EKRAN İZNİNİ REDDETTİ ---")
+            }
+        }
+    }
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(receiver)
     }
-
     @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
     private fun requestScreenCapture() {
         val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         // Sistemden izin isteme ekranını başlatıyoruz
         startActivityForResult(manager.createScreenCaptureIntent(), CAPTURE_CODE)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == CAPTURE_CODE && resultCode == RESULT_OK) {
-            // İzin alındı! Buradan sonra veriyi paketleyip göndermeye başlayacağız.
-            println("Ekran yakalama izni verildi!")
-        }
     }
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.NEARBY_WIFI_DEVICES])
     @RequiresApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
