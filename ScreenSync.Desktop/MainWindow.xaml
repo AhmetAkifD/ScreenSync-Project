@@ -15,13 +15,8 @@
 
         <TextBlock Text="Cihaz Keşif Merkezi" FontSize="24" Foreground="White" Margin="0,0,0,20"/>
 
-        <ListBox x:Name="DeviceList" Grid.Row="1" Background="#2D2D2D" Foreground="White" BorderThickness="0">
-            <ListBox.ItemTemplate>
-                <DataTemplate>
-                    <TextBlock Text="{Binding Name}" Margin="10" FontSize="16"/>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
+        <ListBox x:Name="LogList" Height="200" Margin="10,0,10,80" Background="Black" Foreground="Lime" FontFamily="Consolas" Grid.Row="1"/>
+
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
             <Button x:Name="BtnStartDiscovery" Content="Yayın Başlat (PC'yi Görünür Yap)" 

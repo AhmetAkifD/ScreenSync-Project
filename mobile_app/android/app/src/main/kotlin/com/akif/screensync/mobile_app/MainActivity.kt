@@ -1,5 +1,6 @@
 package com.akif.screensync.mobile_app
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
@@ -16,6 +17,7 @@ import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pManager.PeerListListener
 import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.WifiP2pConfig
+import androidx.annotation.RequiresPermission
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.akif.screensync/stream"
@@ -71,10 +73,12 @@ class MainActivity: FlutterActivity() {
         // Kulağımızı (receiver) sisteme kaydediyoruz
         registerReceiver(receiver, intentFilter)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler @androidx.annotation.RequiresPermission(
+            allOf = [android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.NEARBY_WIFI_DEVICES]
+        ) { call, result ->
             when (call.method) {
                 "startCapture" -> {
-                    val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+                    val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
                     startActivityForResult(projectionManager.createScreenCaptureIntent(), REQUEST_CODE_CAPTURE)
                     result.success("İzin penceresi açıldı")
                 }
@@ -83,6 +87,10 @@ class MainActivity: FlutterActivity() {
                 }
                 "connect" -> {
                     connectToPC(result)
+                }
+                "sendTest" -> {
+                    sendUdpTestMessage("Merhaba PC! Tünel sapasağlam.")
+                    result.success("Test gönderildi")
                 }
                 else -> result.notImplemented()
             }
@@ -107,6 +115,7 @@ class MainActivity: FlutterActivity() {
             println("Ekran yakalama izni verildi!")
         }
     }
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.NEARBY_WIFI_DEVICES])
     @RequiresApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
     private fun startDiscovery(result: MethodChannel.Result) {
         manager.discoverPeers(mChannel, object : WifiP2pManager.ActionListener {
@@ -118,6 +127,7 @@ class MainActivity: FlutterActivity() {
             }
         })
     }
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.NEARBY_WIFI_DEVICES])
     @RequiresApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
     private fun connectToPC(result: MethodChannel.Result) {
         if (peers.isEmpty()) {
@@ -142,5 +152,27 @@ class MainActivity: FlutterActivity() {
                 result.error("HATA", "Bağlanılamadı: $reasonCode", null)
             }
         })
+    }
+
+    private fun sendUdpTestMessage(message: String) {
+        // Ağ işlemleri ana thread'de yapılamaz, çökmemesi için Thread açıyoruz
+        Thread {
+            try {
+                val pcIpAddress = "192.168.137.1"
+                val port = 50000
+
+                val socket = java.net.DatagramSocket()
+                val buffer = message.toByteArray(Charsets.UTF_8)
+                val serverAddress = java.net.InetAddress.getByName(pcIpAddress)
+
+                val packet = java.net.DatagramPacket(buffer, buffer.size, serverAddress, port)
+                socket.send(packet)
+                socket.close()
+
+                println("Test mesajı fırlatıldı: $message")
+            } catch (e: Exception) {
+                println("UDP Gönderme Hatası: ${e.message}")
+            }
+        }.start()
     }
 }

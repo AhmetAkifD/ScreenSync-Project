@@ -128,18 +128,24 @@ namespace ScreenSync.Desktop
             {
                 try
                 {
-                    // Herhangi bir veri gelene kadar kod burada bekler (Asenkron)
                     UdpReceiveResult result = await _udpServer.ReceiveAsync();
                     byte[] receivedBytes = result.Buffer;
 
-                    // Şimdilik sadece gelen verinin boyutunu ve kimden geldiğini logluyoruz
-                    Debug.WriteLine($"[UDP] Veri geldi! Boyut: {receivedBytes.Length} byte | Kaynak: {result.RemoteEndPoint}");
+                    // Test için gelen byte dizisini UTF-8 ile metne çeviriyoruz
+                    string message = System.Text.Encoding.UTF8.GetString(receivedBytes);
 
-                    // İleride bu byte dizisini alıp FFmpeg decoder'ına sokacağız.
+                    // Gelen mesajı loglar yerine direkt arayüzdeki butonun üstüne yazdırıyoruz
+                    Dispatcher.Invoke(() => {
+                        LogList.Items.Add($"[{DateTime.Now:HH:mm:ss}] Gelen: {message}");
+
+                        // Yeni veri geldikçe listenin otomatik en alta kaymasını sağlıyoruz
+                        LogList.SelectedIndex = LogList.Items.Count - 1;
+                        LogList.ScrollIntoView(LogList.SelectedItem);
+                    });
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"[UDP] Dinleme durdu veya hata oluştu: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"[UDP] Dinleme durdu veya hata: {ex.Message}");
                     break;
                 }
             }

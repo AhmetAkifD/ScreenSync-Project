@@ -28,6 +28,10 @@ class ScreenSyncApp extends StatelessWidget {
                 onPressed: _connectToPC,
                 child: const Text('Bulunan PC\'ye Bağlan'),
               ),
+              ElevatedButton(
+                onPressed: _sendTestMessage,
+                child: const Text('UDP Test Mesajı Fırlat'),
+              ),
             ],
           ),
         ),
@@ -70,6 +74,13 @@ class ScreenSyncApp extends StatelessWidget {
       print(result);
     } on PlatformException catch (e) {
       print("Bağlantı hatası: ${e.message}");
+    }
+  }
+  Future<void> _sendTestMessage() async {
+    try {
+      await platform.invokeMethod('sendTest');
+    } catch (e) {
+      print("Hata: $e");
     }
   }
 }
