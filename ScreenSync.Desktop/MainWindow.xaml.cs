@@ -11,6 +11,9 @@ using System.Windows.Navigation;
 using System.Windows.Shapes;
 using Windows.Devices.WiFiDirect;
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading.Tasks;
 
 namespace ScreenSync.Desktop
 {
@@ -22,10 +25,14 @@ namespace ScreenSync.Desktop
         private WiFiDirectAdvertisementPublisher _publisher;
         private WiFiDirectConnectionListener _listener; // Bağlantıları dinleyecek nesne
         private WiFiDirectDevice _connectedDevice;      // Bağlanan cihazı tutacağımız nesne
+        private UdpClient _udpServer;
+        private const int VIDEO_PORT = 50000; // Paketleri göndereceğimiz özel port
+        private bool _isListening = false;
         public MainWindow()
         {
             InitializeComponent();
         }
+
         private void BtnStartDiscovery_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -64,6 +71,7 @@ namespace ScreenSync.Desktop
                 MessageBox.Show($"Hata oluştu: {ex.Message}");
             }
         }
+
         // Telefon bağlantı isteği gönderdiğinde burası tetiklenecek
         private async void OnConnectionRequested(WiFiDirectConnectionListener sender, WiFiDirectConnectionRequestedEventArgs args)
         {
@@ -72,16 +80,68 @@ namespace ScreenSync.Desktop
 
             try
             {
-                // Bağlantıyı kabul et ve cihazı içeri al
                 _connectedDevice = await WiFiDirectDevice.FromIdAsync(request.DeviceInformation.Id);
 
+                if (_publisher != null)
+                {
+                    _publisher.Stop();
+                }
+
+                // TELEFON BAĞLANDIĞI ANDA UDP SOKETİNİ AÇIYORUZ
+                StartUdpListener();
+
                 Dispatcher.Invoke(() => {
-                    MessageBox.Show($"{request.DeviceInformation.Name} başarıyla bağlandı!", "Bağlantı Kuruldu");
+                    BtnStartDiscovery.Content = "Bağlanıldı (Korumalı Mod)";
+                    MessageBox.Show($"{request.DeviceInformation.Name} başarıyla bağlandı. UDP Soketi açıldı!", "Sistem Hazır");
                 });
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[WiFiDirect] Bağlantı reddedildi veya hata: {ex.Message}");
+            }
+        }
+
+        private void StartUdpListener()
+        {
+            if (_isListening) return;
+
+            try
+            {
+                // IPAddress.Any ile Wi-Fi Direct dahil tüm ağ kartlarındaki 50000 portunu dinlemeye başlıyoruz.
+                _udpServer = new UdpClient(VIDEO_PORT);
+                _isListening = true;
+
+                Debug.WriteLine($"[UDP] {VIDEO_PORT} portu üzerinden dinleme başladı. Görüntü paketleri bekleniyor...");
+
+                // UI'ı dondurmamak için sürekli dinleme işini arka plana (background task) atıyoruz
+                Task.Run(async () => await ReceiveDataLoop());
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[UDP] Soket açılamadı: {ex.Message}");
+            }
+        }
+
+        private async Task ReceiveDataLoop()
+        {
+            while (_isListening)
+            {
+                try
+                {
+                    // Herhangi bir veri gelene kadar kod burada bekler (Asenkron)
+                    UdpReceiveResult result = await _udpServer.ReceiveAsync();
+                    byte[] receivedBytes = result.Buffer;
+
+                    // Şimdilik sadece gelen verinin boyutunu ve kimden geldiğini logluyoruz
+                    Debug.WriteLine($"[UDP] Veri geldi! Boyut: {receivedBytes.Length} byte | Kaynak: {result.RemoteEndPoint}");
+
+                    // İleride bu byte dizisini alıp FFmpeg decoder'ına sokacağız.
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[UDP] Dinleme durdu veya hata oluştu: {ex.Message}");
+                    break;
+                }
             }
         }
     }
