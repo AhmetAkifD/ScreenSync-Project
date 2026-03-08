@@ -10,6 +10,7 @@ class ScreenSyncApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       home: Scaffold(
         appBar: AppBar(title: const Text('ScreenSync Mobile')),
         body: Center(
