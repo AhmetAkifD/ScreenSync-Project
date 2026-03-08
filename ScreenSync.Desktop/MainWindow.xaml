@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
         xmlns:local="clr-namespace:ScreenSync.Desktop"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
@@ -15,7 +16,7 @@
 
         <TextBlock Text="Cihaz Keşif Merkezi" FontSize="24" Foreground="White" Margin="0,0,0,20"/>
 
-        <ListBox x:Name="LogList" Height="200" Margin="10,0,10,80" Background="Black" Foreground="Lime" FontFamily="Consolas" Grid.Row="1"/>
+        <vlc:VideoView x:Name="ScreenViewer" Margin="0,10,0,10" Grid.Row="1" />
 
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
