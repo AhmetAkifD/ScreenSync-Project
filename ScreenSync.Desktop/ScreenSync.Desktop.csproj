@@ -13,4 +13,8 @@
     <PackageReference Include="FFmpeg.AutoGen" Version="8.0.0.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\ScreenSync.Network\ScreenSync.Network.csproj" />
+  </ItemGroup>
+
 </Project>
