@@ -34,83 +34,146 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   static const platform = MethodChannel('com.akif.screensync/stream');
+  static const eventChannel = EventChannel('com.akif.screensync/events');
 
-  // Arayüzdeki durum yazısını ve renkleri değiştirmek için stateler
-  String _statusText = "Bağlantı Bekleniyor";
+  String _statusText = "Sistem Hazır";
   Color _statusColor = Colors.grey;
+
   bool _isStreaming = false;
+  bool _isDiscovering = false; // YENİ: Arama durumunu tutuyoruz
+  bool _isConnected = false;   // YENİ: Gerçek bağlantı durumunu tutuyoruz
 
-  Future<void> _startDiscovery() async {
-    Map<Permission, PermissionStatus> statuses = await [
-      Permission.nearbyWifiDevices,
-      Permission.location,
-    ].request();
+  List<Map<String, String>> _foundDevices = [];
 
-    if (statuses[Permission.nearbyWifiDevices] == PermissionStatus.granted &&
-        statuses[Permission.location] == PermissionStatus.granted) {
-      try {
-        setState(() {
-          _statusText = "PC Aranıyor...";
-          _statusColor = Colors.orangeAccent;
-        });
+  @override
+  void initState() {
+    super.initState();
+    _listenToNativeEvents();
+  }
 
-        final String result = await platform.invokeMethod('startDiscovery');
-        print(result);
-      } on PlatformException catch (e) {
-        print("Arama hatası: ${e.message}");
-      }
+  // YENİ VE DÜZELTİLMİŞ KULAK (Tetikleyiciler Burada Çalışır)
+  void _listenToNativeEvents() {
+    eventChannel.receiveBroadcastStream().listen((dynamic event) {
+      final Map<dynamic, dynamic> data = event;
+      final String type = data['type'];
+
+      setState(() {
+        if (type == 'device_found') {
+          bool exists = _foundDevices.any((d) => d['deviceAddress'] == data['deviceAddress']);
+          if (!exists) {
+            _foundDevices.add({
+              'deviceName': data['deviceName'] ?? 'Bilinmeyen PC',
+              'deviceAddress': data['deviceAddress'] ?? '',
+            });
+          }
+          if (!_isConnected) {
+            _statusText = "${_foundDevices.length} PC Bulundu";
+            _statusColor = Colors.orangeAccent;
+          }
+        }
+        // YENİ: GERÇEK BAĞLANTI TETİKLEYİCİSİ
+        else if (type == 'connected') {
+          _isConnected = true;
+          _isDiscovering = false;
+          _statusText = "PC'ye Bağlanıldı";
+          _statusColor = Colors.green;
+          _foundDevices.clear(); // Listeyi temizle kalabalık yapmasın
+        }
+        else if (type == 'stream_stopped') {
+          _isStreaming = false;
+          _statusText = "Yayın Durduruldu";
+          _statusColor = Colors.green; // Hala bağlıyız
+        }
+        else if (type == 'disconnected') {
+          _isConnected = false;
+          _isStreaming = false;
+          _isDiscovering = false;
+          _statusText = "Bağlantı Koptu";
+          _statusColor = Colors.redAccent;
+          _foundDevices.clear();
+        }
+      });
+    }, onError: (dynamic error) {
+      print('EventChannel Hatası: $error');
+    });
+  }
+
+  // YENİ: Arama butonunu Aç/Kapa mantığına getirdik
+  Future<void> _toggleDiscovery() async {
+    if (_isDiscovering) {
+      // Aramayı Durdur
+      await platform.invokeMethod('stopDiscovery');
+      setState(() {
+        _isDiscovering = false;
+        if (!_isConnected) {
+          _statusText = "Arama Durduruldu";
+          _statusColor = Colors.grey;
+        }
+      });
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gerekli izinler verilmedi!')),
-      );
+      // Aramayı Başlat
+      Map<Permission, PermissionStatus> statuses = await [
+        Permission.nearbyWifiDevices,
+        Permission.location,
+      ].request();
+
+      if (statuses[Permission.nearbyWifiDevices] == PermissionStatus.granted &&
+          statuses[Permission.location] == PermissionStatus.granted) {
+        setState(() {
+          _isDiscovering = true;
+          _foundDevices.clear();
+          _statusText = "Ağ Taranıyor...";
+          _statusColor = Colors.orange;
+        });
+        await platform.invokeMethod('startDiscovery');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Konum ve Yakın Cihaz izni gerekli!')),
+        );
+      }
     }
   }
 
-  Future<void> _connectToPC() async {
+  Future<void> _connectToPC(String deviceAddress) async {
     try {
       setState(() {
-        _statusText = "Bağlanılıyor...";
+        _statusText = "Bağlantı İsteği Gönderildi...";
         _statusColor = Colors.blueAccent;
       });
 
-      final String result = await platform.invokeMethod('connect');
-      print(result);
+      // SADECE isteği gönderiyoruz. "Bağlanıldı" yazısını EventChannel ('connected') halledecek!
+      await platform.invokeMethod('connect', {'address': deviceAddress});
 
-      // Not: Aslında bu durumu Kotlin'den dinlemek en iyisi ama şimdilik manuel tetikliyoruz
-      setState(() {
-        _statusText = "PC'ye Bağlanıldı";
-        _statusColor = Colors.greenAccent;
-      });
     } on PlatformException catch (e) {
       print("Bağlantı hatası: ${e.message}");
       setState(() {
-        _statusText = "Bağlantı Başarısız";
+        _statusText = "Bağlantı İsteği Başarısız";
         _statusColor = Colors.redAccent;
       });
     }
   }
 
-  Future<void> _startScreenCapture() async {
+  Future<void> _toggleScreenCapture() async {
+    if (!_isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Önce bir PC\'ye bağlanmalısın!')),
+      );
+      return;
+    }
+
     try {
-      await platform.invokeMethod('startCapture');
-      setState(() {
-        _isStreaming = true;
-        _statusText = "Yayında!";
-        _statusColor = Colors.green;
-      });
+      if (_isStreaming) {
+        await platform.invokeMethod('stopCapture');
+      } else {
+        await platform.invokeMethod('startCapture');
+        setState(() {
+          _isStreaming = true;
+          _statusText = "Ekran Paylaşılıyor!";
+          _statusColor = Colors.deepPurpleAccent;
+        });
+      }
     } on PlatformException catch (e) {
       print("Yayın Hatası: ${e.message}");
-    }
-  }
-
-  Future<void> _sendTestMessage() async {
-    try {
-      await platform.invokeMethod('sendTest');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Test mesajı fırlatıldı!')),
-      );
-    } catch (e) {
-      print("Hata: $e");
     }
   }
 
@@ -120,17 +183,6 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('ScreenSync', style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              // TODO: Ayarlar sayfasına yönlendirme yapılacak
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Ayarlar sayfası yakında eklenecek!')),
-              );
-            },
-          )
-        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -142,80 +194,78 @@ class _HomeScreenState extends State<HomeScreen> {
               elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 30),
+                padding: const EdgeInsets.symmetric(vertical: 20),
                 child: Column(
                   children: [
                     Icon(
-                      _isStreaming ? Icons.cast_connected : Icons.cast,
+                      _isStreaming ? Icons.cast_connected : (_isConnected ? Icons.link : Icons.cast),
                       size: 64,
                       color: _statusColor,
                     ),
                     const SizedBox(height: 16),
                     Text(
                       _statusText,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: _statusColor,
-                      ),
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _statusColor),
                     ),
                   ],
                 ),
               ),
             ),
 
-            const Spacer(),
+            const SizedBox(height: 16),
 
-            // BAĞLANTI BUTONLARI
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _startDiscovery,
-                    icon: const Icon(Icons.wifi_find),
-                    label: const Text('PC Ara'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
+            // BULUNAN CİHAZLAR LİSTESİ
+            if (_foundDevices.isNotEmpty && !_isConnected)
+              Expanded(
+                child: ListView.builder(
+                  itemCount: _foundDevices.length,
+                  itemBuilder: (context, index) {
+                    final device = _foundDevices[index];
+                    return Card(
+                      color: Colors.deepPurple.withOpacity(0.2),
+                      child: ListTile(
+                        leading: const Icon(Icons.computer, color: Colors.white),
+                        title: Text(device['deviceName']!),
+                        subtitle: Text(device['deviceAddress']!),
+                        trailing: ElevatedButton(
+                          onPressed: () => _connectToPC(device['deviceAddress']!),
+                          child: const Text('Bağlan'),
+                        ),
+                      ),
+                    );
+                  },
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _connectToPC,
-                    icon: const Icon(Icons.link),
-                    label: const Text('Bağlan'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
+              )
+            else
+              const Spacer(),
+
+            // YENİ: ARAMA BUTONU (Aç/Kapa Mantığı)
+            if (!_isConnected)
+              ElevatedButton.icon(
+                onPressed: _toggleDiscovery,
+                icon: Icon(_isDiscovering ? Icons.stop : Icons.wifi_find),
+                label: Text(_isDiscovering ? 'Aramayı Durdur' : 'PC Ara (Wi-Fi Direct)'),
+                style: ElevatedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  backgroundColor: _isDiscovering ? Colors.orange : Colors.deepPurple,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-              ],
-            ),
+              ),
 
             const SizedBox(height: 16),
 
             // ANA YAYIN BUTONU
             ElevatedButton.icon(
-              onPressed: _isStreaming ? null : _startScreenCapture,
+              onPressed: _toggleScreenCapture,
               icon: Icon(_isStreaming ? Icons.stop_screen_share : Icons.screen_share),
-              label: Text(_isStreaming ? 'Yayın Devam Ediyor...' : 'Ekran Paylaşımını Başlat', style: const TextStyle(fontSize: 16)),
+              label: Text(_isStreaming ? 'Yayını Durdur' : 'Ekran Paylaşımını Başlat', style: const TextStyle(fontSize: 16)),
               style: ElevatedButton.styleFrom(
                 foregroundColor: Colors.white,
-                backgroundColor: _isStreaming ? Colors.grey : Colors.deepPurpleAccent,
+                backgroundColor: _isConnected ? (_isStreaming ? Colors.redAccent : Colors.green) : Colors.grey,
                 padding: const EdgeInsets.symmetric(vertical: 20),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-            ),
-
-            const SizedBox(height: 32),
-
-            // GİZLİ/KÜÇÜK TEST BUTONU
-            TextButton(
-              onPressed: _sendTestMessage,
-              child: const Text('UDP Test Mesajı Gönder', style: TextStyle(color: Colors.grey)),
             ),
           ],
         ),
