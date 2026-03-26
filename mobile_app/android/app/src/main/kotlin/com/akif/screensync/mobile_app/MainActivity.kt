@@ -279,40 +279,50 @@ class MainActivity: FlutterActivity() {
 
     private fun streamVideoData() {
         try {
-            udpSocket = DatagramSocket()
             val pcIpAddress = "192.168.137.1"
-            val serverAddress = InetAddress.getByName(pcIpAddress)
             val port = 50000
 
-            val bufferInfo = MediaCodec.BufferInfo()
+            // YENİ: UDP (DatagramSocket) yerine TCP (Socket) kullanıyoruz
+            // Bu satır çalıştığında PC'deki C# uygulamasına doğrudan kalıcı bir boru bağlanır
+            val tcpSocket = java.net.Socket(pcIpAddress, port)
+            val outputStream = tcpSocket.getOutputStream()
+
+            val bufferInfo = android.media.MediaCodec.BufferInfo()
 
             while (isStreaming) {
-                // Sıkıştırılmış bir paket var mı diye soruyoruz
                 val outputBufferIndex = encoder?.dequeueOutputBuffer(bufferInfo, 10000) ?: -1
 
                 if (outputBufferIndex >= 0) {
                     val outputBuffer = encoder?.getOutputBuffer(outputBufferIndex)
 
                     if (outputBuffer != null && bufferInfo.size > 0) {
-                        // Sıkıştırılmış veriyi (H.264 NAL Unit) okuyoruz
                         val chunk = ByteArray(bufferInfo.size)
                         outputBuffer.position(bufferInfo.offset)
                         outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
                         outputBuffer.get(chunk)
 
+                        // 4 Byte Boyut Başlığı + H.264 Verisi (Scrcpy Taktiği)
+                        val packetData = java.nio.ByteBuffer.allocate(4 + chunk.size)
+                            .putInt(chunk.size)
+                            .put(chunk)
+                            .array()
+
                         try {
-                            // Veriyi UDP tüneline fırlatıyoruz
-                            val packet = DatagramPacket(chunk, chunk.size, serverAddress, port)
-                            udpSocket?.send(packet)
-                            println("🎥 Video Paketi Fırlatıldı -> Boyut: ${chunk.size} byte")
+                            // YENİ: TCP üzerinden veriyi akıtıyoruz. EMSGSIZE sınırı artık yok!
+                            outputStream.write(packetData)
+                            outputStream.flush()
                         } catch (e: Exception) {
-                            println("UDP Gönderim Hatası: ${e.message}")
+                            println("TCP Gönderim Hatası (Bağlantı kopmuş olabilir): ${e.message}")
+                            break // Hata varsa döngüden çık
                         }
                     }
-                    // Tamponu (Buffer) boşaltıp Encoder'a geri veriyoruz ki yeni kareyi yazabilsin
                     encoder?.releaseOutputBuffer(outputBufferIndex, false)
                 }
             }
+
+            // Döngü bitince boruyu temizle
+            tcpSocket.close()
+
         } catch (e: Exception) {
             println("Yayın Döngüsü Hatası: ${e.message}")
         }
