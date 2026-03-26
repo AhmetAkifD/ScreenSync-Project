@@ -153,7 +153,8 @@ class MainActivity: FlutterActivity() {
     }
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.NEARBY_WIFI_DEVICES])
     private fun startDiscovery(result: MethodChannel.Result) {
-        manager.discoverPeers(mChannel, object : WifiP2pManager.ActionListener {
+        manager.discoverPeers(mChannel, @RequiresApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
+        object : WifiP2pManager.ActionListener {
             override fun onSuccess() {
                 result.success("Arama başlatıldı")
             }
