@@ -99,17 +99,36 @@ namespace ScreenSync.Desktop
             {
                 _connectedDevice = await WiFiDirectDevice.FromIdAsync(request.DeviceInformation.Id);
 
+                // YENİ: Cihazın fiziksel olarak kopup kopmadığını dinleyen kulak
+                // YENİ: İkinci parametreye 'args' dedik ve durumu 'sender.ConnectionStatus' üzerinden okuyoruz
+                _connectedDevice.ConnectionStatusChanged += (sender, args) =>
+                {
+                    if (sender.ConnectionStatus == WiFiDirectConnectionStatus.Disconnected)
+                    {
+                        Dispatcher.Invoke(() => {
+                            Debug.WriteLine("[WiFiDirect] Cihaz bağlantısı koptu. Kapı tekrar açılıyor.");
+                            _connectedDevice?.Dispose();
+                            _connectedDevice = null;
+
+                            // Kapıyı tekrar yayına açıyoruz ki bir daha bağlanılabilsin
+                            if (_publisher.Status != WiFiDirectAdvertisementPublisherStatus.Started)
+                                _publisher.Start();
+
+                            BtnStartDiscovery.Content = "Yayınlanıyor... (PC Görünür)";
+                        });
+                    }
+                };
+
                 if (_publisher != null)
                 {
                     _publisher.Stop();
                 }
 
-                // Telefon bağlandığı an ağ dinleyicisini ve görüntü çözücüyü başlat
                 StartNetworkReceiver();
 
                 Dispatcher.Invoke(() => {
                     BtnStartDiscovery.Content = "Bağlanıldı (Korumalı Mod)";
-                    MessageBox.Show($"{request.DeviceInformation.Name} bağlandı. Ekran aktarımı başlıyor!", "Sistem Hazır");
+                    // MessageBox.Show'u silebilirsin, her bağlandığında ekrana pop-up çıkması can sıkıcı olabilir
                 });
             }
             catch (Exception ex)

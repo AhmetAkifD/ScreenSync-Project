@@ -66,18 +66,29 @@ class _HomeScreenState extends State<HomeScreen> {
               'deviceAddress': data['deviceAddress'] ?? '',
             });
           }
-          if (!_isConnected) {
+          if (!_isConnected && _statusText != "Bağlanılıyor...") {
             _statusText = "${_foundDevices.length} PC Bulundu";
             _statusColor = Colors.orangeAccent;
           }
         }
-        // YENİ: GERÇEK BAĞLANTI TETİKLEYİCİSİ
         else if (type == 'connected') {
           _isConnected = true;
           _isDiscovering = false;
           _statusText = "PC'ye Bağlanıldı";
           _statusColor = Colors.green;
-          _foundDevices.clear(); // Listeyi temizle kalabalık yapmasın
+          _foundDevices.clear();
+        }
+        // YENİ: Yayın GEREKTEN BAŞLADIYSA UI değişecek
+        else if (type == 'stream_started') {
+          _isStreaming = true;
+          _statusText = "Ekran Paylaşılıyor!";
+          _statusColor = Colors.deepPurpleAccent;
+        }
+        // YENİ: Kullanıcı Pop-up'tan İptale Bastıysa
+        else if (type == 'stream_rejected') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Ekran paylaşım izni reddedildi.')),
+          );
         }
         else if (type == 'stream_stopped') {
           _isStreaming = false;
@@ -137,17 +148,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _connectToPC(String deviceAddress) async {
     try {
       setState(() {
-        _statusText = "Bağlantı İsteği Gönderildi...";
+        // Çok fazla yazı değişimini engelledik, sadece "Bağlanılıyor" diyecek
+        _statusText = "Bağlanılıyor...";
         _statusColor = Colors.blueAccent;
+        _isDiscovering = false; // Bağlanırken aramayı görsel olarak durdur
       });
 
-      // SADECE isteği gönderiyoruz. "Bağlanıldı" yazısını EventChannel ('connected') halledecek!
       await platform.invokeMethod('connect', {'address': deviceAddress});
-
     } on PlatformException catch (e) {
       print("Bağlantı hatası: ${e.message}");
       setState(() {
-        _statusText = "Bağlantı İsteği Başarısız";
+        _statusText = "Bağlantı Başarısız";
         _statusColor = Colors.redAccent;
       });
     }
@@ -165,12 +176,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (_isStreaming) {
         await platform.invokeMethod('stopCapture');
       } else {
+        // YENİ: Burada setSate yapmıyoruz! Pop-up çıkacak, Kotlin'den "stream_started" cevabı gelene kadar bekleyeceğiz.
         await platform.invokeMethod('startCapture');
-        setState(() {
-          _isStreaming = true;
-          _statusText = "Ekran Paylaşılıyor!";
-          _statusColor = Colors.deepPurpleAccent;
-        });
       }
     } on PlatformException catch (e) {
       print("Yayın Hatası: ${e.message}");

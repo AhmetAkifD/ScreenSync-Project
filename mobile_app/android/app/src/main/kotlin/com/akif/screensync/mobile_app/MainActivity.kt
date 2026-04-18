@@ -140,6 +140,7 @@ class MainActivity: FlutterActivity() {
                 }
                 "stopCapture" -> {
                     isStreaming = false
+                    stopService(Intent(this@MainActivity, ScreenCaptureService::class.java))
                     eventSink?.success(mapOf("type" to "stream_stopped"))
                     result.success("Yayın durduruldu")
                 }
@@ -176,12 +177,21 @@ class MainActivity: FlutterActivity() {
                         mediaProjection = projectionManager.getMediaProjection(resultCode, data)
                         println("--- EKRAN YAKALAMA İZNİ ALINDI VE SERVİS BAŞLADI ---")
                         startVideoStreaming()
+
+                        // YENİ: Yayın GERÇEKTEN başladığında Flutter'a haber ver!
+                        Handler(Looper.getMainLooper()).post {
+                            eventSink?.success(mapOf("type" to "stream_started"))
+                        }
                     } catch (e: Exception) {
                         println("MediaProjection Hatası: ${e.message}")
                     }
                 }, 500)
             } else {
                 println("--- KULLANICI EKRAN İZNİNİ REDDETTİ ---")
+                // YENİ: Kullanıcı Pop-up'ta "İptal"e basarsa Flutter'ı uyar
+                Handler(Looper.getMainLooper()).post {
+                    eventSink?.success(mapOf("type" to "stream_rejected"))
+                }
             }
         }
     }
@@ -222,9 +232,32 @@ class MainActivity: FlutterActivity() {
         config.deviceAddress = device.deviceAddress
         config.wps.setup = WpsInfo.PBC
 
+        // Android 16'nın çıldırmaması için işlemi kesinlikle Ana Thread'e (UI Thread) alıyoruz
+        Handler(Looper.getMainLooper()).post {
+
+            // HATA 0 ÇÖZÜMÜ: Bağlanmadan önce "Askıda kalan" eski bağlantıları zorla temizle
+            manager.cancelConnect(mChannel, object : WifiP2pManager.ActionListener {
+                override fun onSuccess() {
+                    println("--- Eski bağlantılar temizlendi. Çip dinlendiriliyor... ---")
+                    // Çipe nefes alması için 300ms süre veriyoruz, sonra asıl bağlanma fonksiyonunu çağırıyoruz
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        performActualConnection(config, device.deviceName, result)
+                    }, 300)
+                }
+                override fun onFailure(reasonCode: Int) {
+                    // Hata verse bile (temizlenecek bir şey yoksa) yine de biraz bekle
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        performActualConnection(config, device.deviceName, result)
+                    }, 300)
+                }
+            })
+        }
+    }
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.NEARBY_WIFI_DEVICES])
+    private fun performActualConnection(config: WifiP2pConfig, deviceName: String, result: MethodChannel.Result) {
         manager.connect(mChannel, config, object : WifiP2pManager.ActionListener {
             override fun onSuccess() {
-                println("--- BAĞLANTI İSTEĞİ GÖNDERİLDİ: ${device.deviceName} ---")
+                println("--- BAĞLANTI İSTEĞİ GÖNDERİLDİ: $deviceName ---")
                 result.success("Bağlantı isteği PC'ye iletildi")
             }
             override fun onFailure(reasonCode: Int) {
@@ -263,6 +296,8 @@ class MainActivity: FlutterActivity() {
                 override fun onStop() {
                     super.onStop()
                     isStreaming = false
+                    // YENİ: Sistemden veya başka bir yerden kapanırsa servisi öldür
+                    stopService(Intent(this@MainActivity, ScreenCaptureService::class.java))
                     println("--- EKRAN PAYLAŞIMI DURDURULDU ---")
                     try {
                         encoder?.stop()
