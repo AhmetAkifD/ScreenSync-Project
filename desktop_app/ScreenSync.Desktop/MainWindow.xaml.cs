@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Media;
 using Windows.Devices.WiFiDirect;
 using ScreenSync.Network;
 
@@ -11,6 +12,7 @@ namespace ScreenSync.Desktop
     /// </summary>
     public partial class MainWindow : Window
     {
+        private ScreenWindow? _screenWindow;
         private WiFiDirectAdvertisementPublisher _publisher;
         private WiFiDirectConnectionListener _listener;
         private WiFiDirectDevice _connectedDevice;
@@ -52,6 +54,8 @@ namespace ScreenSync.Desktop
 
                 BtnStartDiscovery.Content = "Yayınlanıyor... (PC Görünür)";
                 BtnStartDiscovery.IsEnabled = false;
+                StatusText.Text = "Cihaz aranıyor...";
+                StatusText.Foreground = Brushes.Orange;
 
                 Debug.WriteLine("[WiFiDirect] Yayın başlatıldı.");
             }
@@ -68,13 +72,44 @@ namespace ScreenSync.Desktop
 
             _tcpReceiver.OnError += (msg) => Debug.WriteLine($"[AĞ HATASI] {msg}");
 
+            _tcpReceiver.OnDisconnected += () =>
+            {
+                Dispatcher.Invoke(() => {
+                    Debug.WriteLine("[AĞ] Cihaz ekran paylaşımını durdurdu (TCP Bağlantısı kapandı).");
+                    if (_screenWindow != null)
+                    {
+                        _screenWindow.Close();
+                        _screenWindow = null;
+                    }
+                    
+                    if (_connectedDevice != null) 
+                    {
+                        StatusText.Text = "Cihaz bağlandı. Ekran paylaşımı bekleniyor...";
+                        StatusText.Foreground = Brushes.LightGreen;
+                    }
+                });
+            };
+
             _tcpReceiver.OnFrameReceived += (frameData) =>
             {
                 var image = _decoder.DecodeFrame(frameData);
                 if (image != null)
                 {
                     Dispatcher.Invoke(() => {
-                        ScreenViewer.Source = image;
+                        if (_screenWindow == null)
+                        {
+                            _screenWindow = new ScreenWindow();
+                            _screenWindow.Closed += (s, ev) => _screenWindow = null;
+                            _screenWindow.Show();
+                            
+                            StatusText.Text = "Ekran aktarılıyor...";
+                            StatusText.Foreground = Brushes.Cyan;
+                        }
+
+                        if (_screenWindow != null)
+                        {
+                            _screenWindow.ScreenViewer.Source = image;
+                        }
                     });
                 }
             };
@@ -110,11 +145,21 @@ namespace ScreenSync.Desktop
                             _connectedDevice?.Dispose();
                             _connectedDevice = null;
 
+                            if (_screenWindow != null)
+                            {
+                                _screenWindow.Close();
+                                _screenWindow = null;
+                            }
+
+                            _tcpReceiver?.Stop();
+
                             // Kapıyı tekrar yayına açıyoruz ki bir daha bağlanılabilsin
                             if (_publisher.Status != WiFiDirectAdvertisementPublisherStatus.Started)
                                 _publisher.Start();
 
                             BtnStartDiscovery.Content = "Yayınlanıyor... (PC Görünür)";
+                            StatusText.Text = "Ekran Paylaşımı Bekleniyor...";
+                            StatusText.Foreground = Brushes.LightGray;
                         });
                     }
                 };
@@ -127,8 +172,9 @@ namespace ScreenSync.Desktop
                 StartNetworkReceiver();
 
                 Dispatcher.Invoke(() => {
-                    BtnStartDiscovery.Content = "Bağlanıldı (Korumalı Mod)";
-                    // MessageBox.Show'u silebilirsin, her bağlandığında ekrana pop-up çıkması can sıkıcı olabilir
+                    BtnStartDiscovery.Content = "Bağlanıldı";
+                    StatusText.Text = "Cihaz bağlandı. Ekran paylaşımı bekleniyor...";
+                    StatusText.Foreground = Brushes.LightGreen;
                 });
             }
             catch (Exception ex)

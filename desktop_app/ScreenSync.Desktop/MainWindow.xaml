@@ -1,26 +1,42 @@
-﻿<Window x:Class="ScreenSync.Desktop.MainWindow"
+<Window x:Class="ScreenSync.Desktop.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ScreenSync.Desktop"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <TextBlock Text="Cihaz Keşif Merkezi" FontSize="24" Foreground="White" Margin="0,0,0,20"/>
-
-        <Image x:Name="ScreenViewer" Stretch="Uniform" />
-
-
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+        Title="ScreenSync Kontrol Merkezi" Height="300" Width="400"
+        WindowStartupLocation="CenterScreen"
+        Background="#1E1E1E">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="#007ACC"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#005A9E"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+    <Grid Margin="30">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+            <TextBlock x:Name="StatusText" Text="Ekran Paylaşımı Bekleniyor..." 
+                       Foreground="#AAAAAA" FontSize="16" HorizontalAlignment="Center" Margin="0,0,0,30"/>
             <Button x:Name="BtnStartDiscovery" Content="Yayın Başlat (PC'yi Görünür Yap)" 
-                    Width="200" Height="40" Background="#007ACC" Foreground="White" Click="BtnStartDiscovery_Click"/>
+                    Width="280" Height="45" FontSize="15" Click="BtnStartDiscovery_Click" Cursor="Hand"/>
         </StackPanel>
     </Grid>
 </Window>

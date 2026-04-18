@@ -1,0 +1,10 @@
+<Window x:Class="ScreenSync.Desktop.ScreenWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Cihaz Ekranı" Height="800" Width="450"
+        Background="Black"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Image x:Name="ScreenViewer" Stretch="Uniform" />
+    </Grid>
+</Window>
