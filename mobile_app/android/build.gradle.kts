@@ -1,3 +1,6 @@
+buildscript {
+    val agp_version by extra("8.13.2")
+}
 allprojects {
     repositories {
         google()

@@ -232,6 +232,11 @@ class MainActivity: FlutterActivity() {
         config.deviceAddress = device.deviceAddress
         config.wps.setup = WpsInfo.PBC
 
+        manager.stopPeerDiscovery(mChannel, object : WifiP2pManager.ActionListener {
+            override fun onSuccess() { println("--- Bağlanma öncesi arama durduruldu ---") }
+            override fun onFailure(p0: Int) { }
+        })
+
         // Android 16'nın çıldırmaması için işlemi kesinlikle Ana Thread'e (UI Thread) alıyoruz
         Handler(Looper.getMainLooper()).post {
 

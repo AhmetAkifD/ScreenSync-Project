@@ -132,6 +132,7 @@ namespace ScreenSync.Desktop
 
             try
             {
+                _publisher.Stop();
                 _connectedDevice = await WiFiDirectDevice.FromIdAsync(request.DeviceInformation.Id);
 
                 // YENİ: Cihazın fiziksel olarak kopup kopmadığını dinleyen kulak
