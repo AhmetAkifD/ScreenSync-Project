@@ -159,10 +159,6 @@ class MainActivity: FlutterActivity() {
                     val macAddress = call.argument<String>("address")
                     connectToPC(macAddress, result)
                 }
-                "sendTest" -> {
-                    sendUdpTestMessage("Merhaba PC! Tünel sapasağlam.")
-                    result.success("Test gönderildi")
-                }
                 else -> result.notImplemented()
             }
         }
@@ -274,23 +270,6 @@ class MainActivity: FlutterActivity() {
                 result.error("HATA", "Bağlanılamadı: $reasonCode", null)
             }
         })
-    }
-
-    private fun sendUdpTestMessage(message: String) {
-        Thread {
-            try {
-                val pcIpAddress = "192.168.137.1"
-                val port = 50000
-                val socket = java.net.DatagramSocket()
-                val buffer = message.toByteArray(Charsets.UTF_8)
-                val serverAddress = java.net.InetAddress.getByName(pcIpAddress)
-                val packet = java.net.DatagramPacket(buffer, buffer.size, serverAddress, port)
-                socket.send(packet)
-                socket.close()
-            } catch (e: Exception) {
-                println("UDP Gönderme Hatası: ${e.message}")
-            }
-        }.start()
     }
 
     private fun startVideoStreaming() {
