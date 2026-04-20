@@ -20,6 +20,8 @@ namespace ScreenSync.Desktop.User_Controls
     /// </summary>
     public partial class DeviceBoxes : UserControl
     {
+        private bool _isFavorite = false;
+        public event Action<string> OnStartClicked; // Cihaz IP'sini dışarı fırlatır
         public DeviceBoxes(string deviceName, string ipAddress)
         {
             InitializeComponent();
@@ -27,12 +29,19 @@ namespace ScreenSync.Desktop.User_Controls
             TxtIpAddress.Text = ipAddress;
         }
 
-        public event Action<string> OnStartClicked; // Cihaz IP'sini dışarı fırlatır
+        
 
         private void Button_Click(object sender, RoutedEventArgs e)
         {
             // Butona basıldığında bu cihazın IP'sini ana sayfaya haber veriyoruz
             OnStartClicked?.Invoke(TxtIpAddress.Text);
+        }
+
+        // Yıldız butonuna tıklandığında (Tıklanınca rengi kendi içinde değiştirir)
+        private void BtnFavorite_Click(object sender, RoutedEventArgs e)
+        {
+            SetFavorite(!_isFavorite); // State'i tersine çevir ve rengi güncelle
+            // İleride ana sayfaya "bu cihaz favori yapıldı" haberi uçurmak için event Action<string, bool> fırlatılabilir.
         }
 
         // DeviceBoxes.xaml.cs içinde
@@ -49,6 +58,16 @@ namespace ScreenSync.Desktop.User_Controls
             // Bağlantı LED'leri
             LightUsb.Opacity = isUsb ? 1.0 : 0.2;
             LightWifi.Opacity = !isUsb ? 1.0 : 0.2;
+        }
+        
+        // Favori durumunu dışarıdan ayarlayan metot (Encapsulation Master)
+        public void SetFavorite(bool isFavorite)
+        {
+            _isFavorite = isFavorite;
+            // Yıldız rengini güncelle (Favoriyse altın sarısı, değilse sönük gri)
+            IconFavorite.Fill = isFavorite ? new SolidColorBrush(Colors.Gold) : new SolidColorBrush(Color.FromRgb(85, 85, 85));
+            // Tooltip'i güncelle
+            BtnFavorite.ToolTip = isFavorite ? "Favorilerden Çıkar" : "Favorilere Ekle";
         }
     }
 }

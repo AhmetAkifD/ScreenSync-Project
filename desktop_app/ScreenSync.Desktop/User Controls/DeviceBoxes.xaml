@@ -12,10 +12,22 @@
 
     <Grid>
         <Grid VerticalAlignment="Top">
-            
             <StackPanel HorizontalAlignment="Left">
-                <TextBlock x:Name="TxtDeviceName" Text="Galaxy A56" Foreground="White" FontSize="16" FontWeight="Bold"/>
-                <TextBlock x:Name="TxtIpAddress" Text="127.0.0.1" Foreground="White" FontSize="10" Opacity="0.5" Margin="0,2,0,0"/>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock x:Name="TxtDeviceName" Text="Galaxy A56" Foreground="White" FontSize="16" FontWeight="Bold"/>
+                    <Button x:Name="BtnFavorite" Click="BtnFavorite_Click" Background="Transparent" BorderThickness="0" Margin="10,0,0,0" Cursor="Hand" VerticalAlignment="Center" ToolTip="Favorilere Ekle">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="Transparent">
+                                    <ContentPresenter/>
+                                </Border>
+                            </ControlTemplate>
+                        </Button.Template>
+                        <Path x:Name="IconFavorite" Data="M 10,0 L 13,7 L 20,7 L 15,12 L 17,19 L 10,15 L 3,19 L 5,12 L 0,7 L 7,7 Z" 
+                              Fill="#555555" Stretch="Fill" Width="14" Height="14"/>
+                    </Button>
+                </StackPanel>
+                <TextBlock x:Name="TxtIpAddress" Text="127.0.0.1" Foreground="White" FontSize="10" Opacity="0.5" Margin="0,2,0,0"/>   
             </StackPanel>
 
             <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top">
