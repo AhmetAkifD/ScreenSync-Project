@@ -11,6 +11,7 @@ namespace ScreenSync.Desktop
         private MainWindowTools _mainWindowTools;
         private SyncManager _syncManager;
         private const int VIDEO_PORT = 50000;
+        private bool _isUserWantsToSee = false; // Kullanıcı "Yayını Başlat" dedi mi?
 
         public MainWindow()
         {
@@ -20,35 +21,52 @@ namespace ScreenSync.Desktop
 
             // Arka plandan gelen olayları dinliyoruz
             _syncManager.OnStatusChanged += _mainWindowTools.UpdateStatus;
-            _syncManager.OnStreamStopped += _mainWindowTools.HandleStreamStopped;
-            _syncManager.OnImageDecoded += _mainWindowTools.DisplayImage;
-
+            _syncManager.OnStreamStopped += HandleStreamStopped;
+            // ÖNEMLİ: Görüntü gelince hemen açma, önce bir kontrol et
+            _syncManager.OnImageDecoded += (img) => {
+                if (_isUserWantsToSee) _mainWindowTools.DisplayImage(img);
+            };
+            // YENİ: Veri gelince ışığı yak ve butonu aç
+            _syncManager.OnFirstDataDetected += () => {
+                Dispatcher.Invoke(() => {
+                    StatusLight.Fill = Brushes.Green;
+                    TxtLightStatus.Text = "Veri Akışı Sağlandı!";
+                    BtnShowStream.IsEnabled = true; // Artık kullanıcı yayını başlatabilir
+                });
+            };
             this.Closed += (s, e) => _syncManager.StopAll();
         }
 
-        private void BtnStartDiscovery_Click(object sender, RoutedEventArgs e)
+        private void BtnListenPort_Click(object sender, RoutedEventArgs e)
         {
-            BtnStartDiscovery.IsEnabled = false;
-            _syncManager.StartServer(VIDEO_PORT);
-        }
-
-        private void BtnStartUsb_Click(object sender, RoutedEventArgs e)
-        {
-            // 1. Önce arka planda ADB köprüsünü kuruyoruz
-            bool adbSuccess = _mainWindowTools.SetupAdbReverse();
-
-            if (adbSuccess)
+            // Önce USB köprüsünü kur, sonra server'ı aç
+            if (_mainWindowTools.SetupAdbReverse())
             {
-                // 2. Başarılıysa sunucuyu (TcpServer) başlatıyoruz
-                BtnStartUsb.IsEnabled = false;
-                BtnStartDiscovery.IsEnabled = false; // İkisi aynı anda açılmasın
                 _syncManager.StartServer(VIDEO_PORT);
-
-                StatusText.Text = "USB Köprüsü Hazır. Telefondan yayını başlatın!";
-                StatusText.Foreground = Brushes.Cyan;
+                BtnListenPort.IsEnabled = false;
+                BtnListenPort.Content = "Port Dinleniyor...";
             }
         }
 
-        
+        private void BtnShowStream_Click(object sender, RoutedEventArgs e)
+        {
+            _isUserWantsToSee = true;
+            BtnShowStream.IsEnabled = false;
+            BtnShowStream.Content = "Yayın Aktif";
+        }
+
+        private void HandleStreamStopped()
+        {
+            Dispatcher.Invoke(() => {
+                _isUserWantsToSee = false;
+                StatusLight.Fill = Brushes.Red;
+                TxtLightStatus.Text = "Bağlantı Koptu";
+                BtnShowStream.IsEnabled = false;
+                BtnListenPort.IsEnabled = true;
+                _mainWindowTools.HandleStreamStopped();
+            });
+        }
+
+
     }
 }

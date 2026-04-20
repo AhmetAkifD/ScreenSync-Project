@@ -26,16 +26,20 @@ namespace ScreenSync.Desktop.Tools
         public void UpdateStatus(string message)
         {
             _mainWindow.Dispatcher.Invoke(() => {
-                _mainWindow.StatusText.Text = message;
-                _mainWindow.StatusText.Foreground = Brushes.Orange;
+                // Eski StatusText yerine yeni eklediğimiz TxtLightStatus'u kullanıyoruz
+                _mainWindow.TxtLightStatus.Text = message;
+                // Sistemden genel bir bilgi geldiğinde ışığı turuncu yapıyoruz (Örn: Dinleniyor...)
+                _mainWindow.StatusLight.Fill = Brushes.Orange;
             });
         }
 
         public void HandleStreamStopped()
         {
             _mainWindow.Dispatcher.Invoke(() => {
-                _mainWindow.StatusText.Text = "Bağlantı koptu. Yeni bağlantı bekleniyor...";
-                _mainWindow.StatusText.Foreground = Brushes.Red;
+                _mainWindow.TxtLightStatus.Text = "Bağlantı koptu. Yeni bağlantı bekleniyor...";
+                // Bağlantı koptuğunda ışık anında kırmızıya dönecek
+                _mainWindow.StatusLight.Fill = Brushes.Red;
+
                 _screenWindow?.Close();
                 _screenWindow = null;
             });
@@ -50,8 +54,9 @@ namespace ScreenSync.Desktop.Tools
                     _screenWindow.Closed += (s, e) => _screenWindow = null;
                     _screenWindow.Show();
 
-                    _mainWindow.StatusText.Text = "Ekran Aktarılıyor...";
-                    _mainWindow.StatusText.Foreground = Brushes.Cyan;
+                    // Sen "Yayını Başlat" dediğinde ve pencere açıldığında ışık Turkuaz olacak
+                    _mainWindow.TxtLightStatus.Text = "Ekran Aktarılıyor...";
+                    _mainWindow.StatusLight.Fill = Brushes.Cyan;
                 }
                 _screenWindow.ScreenViewer.Source = image;
             });

@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ScreenSync.Desktop"
         mc:Ignorable="d"
-        Title="ScreenSync Kontrol Merkezi" Height="300" Width="640"
+        Title="ScreenSync Kontrol Merkezi" Height="300" Width="420"
         WindowStartupLocation="CenterScreen"
         Background="#1E1E1E">
     <Window.Resources>
@@ -32,17 +32,25 @@
         </Style>
     </Window.Resources>
     <Grid Margin="30">
-        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-            <TextBlock x:Name="StatusText" Text="Ekran Paylaşımı Bekleniyor..." 
-                       Foreground="#AAAAAA" FontSize="16" HorizontalAlignment="Center" Margin="0,0,0,10"/>
-            <Button x:Name="BtnStartUsb" 
-                    Content="USB (Kablolu) Bağlantıyı Başlat" 
-                    Height="40" Margin="0,0,0,10" 
-                    Background="#008080" Foreground="White" 
-                    FontSize="16" FontWeight="Bold"
-                    Click="BtnStartUsb_Click"/>
-            <Button x:Name="BtnStartDiscovery" Content="Yayın Başlat (PC'yi Görünür Yap)" 
-                    Width="280" Height="45" FontSize="15" Click="BtnStartDiscovery_Click" Cursor="Hand"/>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*"/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+        <StackPanel Orientation="Vertical" VerticalAlignment="Center" Grid.ColumnSpan="2">
+            <Button x:Name="BtnListenPort" Content="Portu Dinlemeye Başla" 
+            Click="BtnListenPort_Click" Height="40" Margin="10" 
+            Background="#2D2D2D" Foreground="White"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
+                <Ellipse x:Name="StatusLight" Width="20" Height="20" Fill="Red" Margin="5"/>
+                <TextBlock x:Name="TxtLightStatus" Text="Veri Bekleniyor..." 
+                   Foreground="White" VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <Button x:Name="BtnShowStream" Content="Yayını Başlat" 
+            Click="BtnShowStream_Click" Height="50" Margin="10" 
+            IsEnabled="False" Background="#4CAF50" Foreground="White" 
+            FontSize="18" FontWeight="Bold"/>
         </StackPanel>
     </Grid>
 </Window>

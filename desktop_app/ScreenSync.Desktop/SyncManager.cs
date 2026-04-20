@@ -13,6 +13,9 @@ namespace ScreenSync.Desktop
         public event Action<string> OnStatusChanged;
         public event Action<WriteableBitmap> OnImageDecoded;
         public event Action OnStreamStopped;
+        
+        public event Action OnFirstDataDetected; // Veri geldiğinde UI'ı yeşile boyamak için
+        private bool _isFirstFrame = true;
 
         public SyncManager()
         {
@@ -26,6 +29,13 @@ namespace ScreenSync.Desktop
             // Ağdan veri gelince -> Çözücüye ver -> Çözülen resmi arayüze fırlat
             _tcpServer.OnFrameReceived += (frameData) =>
             {
+                // Eğer ilk defa veri geliyorsa ışığı yakmak için haber ver
+                if (_isFirstFrame)
+                {
+                    _isFirstFrame = false;
+                    OnFirstDataDetected?.Invoke();
+                }
+
                 var image = _decoder.DecodeFrame(frameData);
                 if (image != null)
                 {
@@ -36,7 +46,7 @@ namespace ScreenSync.Desktop
 
         public void StartServer(int port)
         {
-            OnStatusChanged?.Invoke($"Sunucu {port} portunda dinleniyor... (Kabloyu veya Wi-Fi'ı bağlayın)");
+            OnStatusChanged?.Invoke($"Sunucu {port} portunda dinleniyor... (Kabloyu bağlayın)");
             _ = _tcpServer.StartListeningAsync(port);
         }
 
