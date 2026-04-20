@@ -20,14 +20,35 @@ namespace ScreenSync.Desktop.User_Controls
     /// </summary>
     public partial class DeviceBoxes : UserControl
     {
-        public DeviceBoxes()
+        public DeviceBoxes(string deviceName, string ipAddress)
         {
             InitializeComponent();
+            TxtDeviceName.Text = deviceName;
+            TxtIpAddress.Text = ipAddress;
         }
+
+        public event Action<string> OnStartClicked; // Cihaz IP'sini dışarı fırlatır
 
         private void Button_Click(object sender, RoutedEventArgs e)
         {
+            // Butona basıldığında bu cihazın IP'sini ana sayfaya haber veriyoruz
+            OnStartClicked?.Invoke(TxtIpAddress.Text);
+        }
 
+        // DeviceBoxes.xaml.cs içinde
+        public void UpdateStatus(bool isConnected, bool isReady, bool isStreaming)
+        {
+            // Durum LED'leri
+            LightDisconnected.Opacity = isConnected ? 0.2 : 1.0;
+            LightReady.Opacity = isReady ? 1.0 : 0.2;
+            LightStreaming.Opacity = isStreaming ? 1.0 : 0.2;
+        }
+
+        public void SetConnectionType(bool isUsb)
+        {
+            // Bağlantı LED'leri
+            LightUsb.Opacity = isUsb ? 1.0 : 0.2;
+            LightWifi.Opacity = !isUsb ? 1.0 : 0.2;
         }
     }
 }
