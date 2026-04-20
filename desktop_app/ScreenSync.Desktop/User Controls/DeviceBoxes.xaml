@@ -1,0 +1,67 @@
+﻿<UserControl x:Class="ScreenSync.Desktop.User_Controls.DeviceBoxes"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:ScreenSync.Desktop.User_Controls"
+             mc:Ignorable="d" 
+             d:DesignHeight="150" d:DesignWidth="250">
+    <Grid>
+        <Border CornerRadius="10" Background="#2C2F33" Padding="15" Width="220" Height="120">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.3"/>
+            </Border.Effect>
+
+            <Grid>
+                <Grid VerticalAlignment="Top">
+                    <TextBlock Text="Cihaz Adı" Foreground="White" FontSize="16" FontWeight="Bold" 
+                               HorizontalAlignment="Left" VerticalAlignment="Center"/>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Ellipse x:Name="LightDisconnected" Width="8" Height="8" Fill="#F44336" Margin="0,0,6,0" ToolTip="Cihaz Algılanamadı"/>
+
+                        <Ellipse x:Name="LightReady" Width="8" Height="8" Fill="#4CAF50" Margin="0,0,6,0" Opacity="0.2" ToolTip="Bağlantı Hazır"/>
+
+                        <Ellipse x:Name="LightStreaming" Width="8" Height="8" Fill="#00BCD4" Opacity="0.2" ToolTip="Yayın Devam Ediyor"/>
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+
+                    <Button Foreground="White" Height="35" Width="45" Margin="0,0,10,0">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="#F44336" 
+                                        CornerRadius="8" 
+                                        BorderBrush="#D32F2F" 
+                                        BorderThickness="1">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </ControlTemplate>
+                        </Button.Template>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Data="M 0,0 L 12,0 L 12,12 L 0,12 Z" Fill="White" Stretch="Fill" Width="12" Height="12"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button Foreground="White" Height="35" Width="45" Click="Button_Click">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="#4CAF50" 
+                                        CornerRadius="8" 
+                                        BorderBrush="#2E7D32" 
+                                        BorderThickness="1">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </ControlTemplate>
+                        </Button.Template>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Data="M 0,0 L 0,16 L 12,8 Z" Fill="White" Stretch="Fill" Width="12" Height="14"/>
+                        </StackPanel>
+                    </Button>
+
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
