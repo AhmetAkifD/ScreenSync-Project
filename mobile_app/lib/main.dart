@@ -17,8 +17,7 @@ class ScreenSyncApp extends StatelessWidget {
       theme: ThemeData(
         brightness: Brightness.dark,
         useMaterial3: true,
-        colorSchemeSeed: Colors.deepPurple, // Uygulamanın ana vurgu rengi
-        fontFamily: 'Roboto', // Veya projende olan özel bir font
+        colorSchemeSeed: Colors.deepPurple,
       ),
       home: const HomeScreen(),
     );
@@ -40,8 +39,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Color _statusColor = Colors.grey;
 
   bool _isStreaming = false;
-  bool _isDiscovering = false; // YENİ: Arama durumunu tutuyoruz
-  bool _isConnected = false;   // YENİ: Gerçek bağlantı durumunu tutuyoruz
+  bool _isDiscovering = false;
+  bool _isConnected = false;
+
+  // YENİ: Hedef IP'yi dinamik tutuyoruz. Varsayılan Wi-Fi Direct IP'si.
+  String _targetIp = "192.168.137.1";
 
   List<Map<String, String>> _foundDevices = [];
 
@@ -51,7 +53,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _listenToNativeEvents();
   }
 
-  // YENİ VE DÜZELTİLMİŞ KULAK (Tetikleyiciler Burada Çalışır)
   void _listenToNativeEvents() {
     eventChannel.receiveBroadcastStream().listen((dynamic event) {
       final Map<dynamic, dynamic> data = event;
@@ -74,17 +75,16 @@ class _HomeScreenState extends State<HomeScreen> {
         else if (type == 'connected') {
           _isConnected = true;
           _isDiscovering = false;
-          _statusText = "PC'ye Bağlanıldı";
+          _targetIp = "192.168.137.1"; // Wi-Fi Direct IP'si
+          _statusText = "PC'ye Bağlanıldı (Wi-Fi)";
           _statusColor = Colors.green;
           _foundDevices.clear();
         }
-        // YENİ: Yayın GEREKTEN BAŞLADIYSA UI değişecek
         else if (type == 'stream_started') {
           _isStreaming = true;
           _statusText = "Ekran Paylaşılıyor!";
           _statusColor = Colors.deepPurpleAccent;
         }
-        // YENİ: Kullanıcı Pop-up'tan İptale Bastıysa
         else if (type == 'stream_rejected') {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Ekran paylaşım izni reddedildi.')),
@@ -93,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
         else if (type == 'stream_stopped') {
           _isStreaming = false;
           _statusText = "Yayın Durduruldu";
-          _statusColor = Colors.green; // Hala bağlıyız
+          _statusColor = Colors.green;
         }
         else if (type == 'disconnected') {
           _isConnected = false;
@@ -109,10 +109,8 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // YENİ: Arama butonunu Aç/Kapa mantığına getirdik
   Future<void> _toggleDiscovery() async {
     if (_isDiscovering) {
-      // Aramayı Durdur
       await platform.invokeMethod('stopDiscovery');
       setState(() {
         _isDiscovering = false;
@@ -122,7 +120,6 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       });
     } else {
-      // Aramayı Başlat
       Map<Permission, PermissionStatus> statuses = await [
         Permission.nearbyWifiDevices,
         Permission.location,
@@ -148,10 +145,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _connectToPC(String deviceAddress) async {
     try {
       setState(() {
-        // Çok fazla yazı değişimini engelledik, sadece "Bağlanılıyor" diyecek
         _statusText = "Bağlanılıyor...";
         _statusColor = Colors.blueAccent;
-        _isDiscovering = false; // Bağlanırken aramayı görsel olarak durdur
+        _isDiscovering = false;
       });
 
       await platform.invokeMethod('connect', {'address': deviceAddress});
@@ -164,10 +160,25 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // YENİ: USB Moduna Geçiş Fonksiyonu
+  void _enableUsbMode() {
+    setState(() {
+      _isConnected = true; // Yayına izin vermek için sanal bağlantı
+      _targetIp = "127.0.0.1"; // ADB Reverse IP'si
+      _isDiscovering = false;
+      _foundDevices.clear();
+      _statusText = "USB Modu Aktif";
+      _statusColor = Colors.teal;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('USB Kablosu ile yayına hazır!')),
+    );
+  }
+
   Future<void> _toggleScreenCapture() async {
     if (!_isConnected) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Önce bir PC\'ye bağlanmalısın!')),
+        const SnackBar(content: Text('Önce bir PC\'ye bağlanmalısın veya USB Modunu açmalısın!')),
       );
       return;
     }
@@ -176,8 +187,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (_isStreaming) {
         await platform.invokeMethod('stopCapture');
       } else {
-        // YENİ: Burada setSate yapmıyoruz! Pop-up çıkacak, Kotlin'den "stream_started" cevabı gelene kadar bekleyeceğiz.
-        await platform.invokeMethod('startCapture');
+        // YENİ: Hangi IP'ye yayın yapılacağını Kotlin'e gönderiyoruz
+        await platform.invokeMethod('startCapture', {'ip': _targetIp});
       }
     } on PlatformException catch (e) {
       print("Yayın Hatası: ${e.message}");
@@ -196,7 +207,6 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // DURUM KARTI
             Card(
               elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -221,7 +231,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 16),
 
-            // BULUNAN CİHAZLAR LİSTESİ
             if (_foundDevices.isNotEmpty && !_isConnected)
               Expanded(
                 child: ListView.builder(
@@ -246,8 +255,20 @@ class _HomeScreenState extends State<HomeScreen> {
             else
               const Spacer(),
 
-            // YENİ: ARAMA BUTONU (Aç/Kapa Mantığı)
-            if (!_isConnected)
+            // YENİ: USB MODU BUTONU
+            if (!_isConnected) ...[
+              OutlinedButton.icon(
+                onPressed: _enableUsbMode,
+                icon: const Icon(Icons.usb),
+                label: const Text('USB (Kablolu) Moduna Geç'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  side: const BorderSide(color: Colors.teal),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 12),
+
               ElevatedButton.icon(
                 onPressed: _toggleDiscovery,
                 icon: Icon(_isDiscovering ? Icons.stop : Icons.wifi_find),
@@ -259,10 +280,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
+            ],
 
             const SizedBox(height: 16),
 
-            // ANA YAYIN BUTONU
             ElevatedButton.icon(
               onPressed: _toggleScreenCapture,
               icon: Icon(_isStreaming ? Icons.stop_screen_share : Icons.screen_share),

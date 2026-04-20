@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:ScreenSync.Desktop"
         mc:Ignorable="d"
-        Title="ScreenSync Kontrol Merkezi" Height="300" Width="400"
+        Title="ScreenSync Kontrol Merkezi" Height="300" Width="640"
         WindowStartupLocation="CenterScreen"
         Background="#1E1E1E">
     <Window.Resources>
@@ -34,7 +34,13 @@
     <Grid Margin="30">
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
             <TextBlock x:Name="StatusText" Text="Ekran Paylaşımı Bekleniyor..." 
-                       Foreground="#AAAAAA" FontSize="16" HorizontalAlignment="Center" Margin="0,0,0,30"/>
+                       Foreground="#AAAAAA" FontSize="16" HorizontalAlignment="Center" Margin="0,0,0,10"/>
+            <Button x:Name="BtnStartUsb" 
+                    Content="USB (Kablolu) Bağlantıyı Başlat" 
+                    Height="40" Margin="0,0,0,10" 
+                    Background="#008080" Foreground="White" 
+                    FontSize="16" FontWeight="Bold"
+                    Click="BtnStartUsb_Click"/>
             <Button x:Name="BtnStartDiscovery" Content="Yayın Başlat (PC'yi Görünür Yap)" 
                     Width="280" Height="45" FontSize="15" Click="BtnStartDiscovery_Click" Cursor="Hand"/>
         </StackPanel>

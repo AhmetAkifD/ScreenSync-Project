@@ -5,79 +5,68 @@ using System.Threading.Tasks;
 
 namespace ScreenSync.Network
 {
-    public class TcpReceiver
+    public class TcpServer
     {
-        // WPF tarafına "Yeni bir kare geldi" veya "Hata çıktı" diye bağıracağımız olaylar (Events)
         public event Action<byte[]> OnFrameReceived;
         public event Action<string> OnError;
         public event Action OnDisconnected;
+        public event Action OnClientConnected;
 
         private TcpListener _tcpListener;
         private bool _isReceiving = false;
 
-        public async Task StartAsync(int port)
+        public async Task StartListeningAsync(int port)
         {
             try
             {
                 _tcpListener = new TcpListener(IPAddress.Any, port);
                 _tcpListener.Start();
-                System.Diagnostics.Debug.WriteLine($"[TCP] {port} portunda dinleniyor...");
-
                 _isReceiving = true;
 
                 while (_isReceiving)
                 {
                     TcpClient client = await _tcpListener.AcceptTcpClientAsync();
-                    System.Diagnostics.Debug.WriteLine("[TCP] Cihaz bağlandı! Veri akışı başlıyor.");
+                    OnClientConnected?.Invoke();
 
                     try
                     {
-                        using (NetworkStream stream = client.GetStream())
+                        using NetworkStream stream = client.GetStream();
+                        while (_isReceiving && client.Connected)
                         {
-                            while (_isReceiving && client.Connected)
+                            byte[] headerBytes = new byte[4];
+                            int headerRead = await stream.ReadAsync(headerBytes, 0, 4);
+                            if (headerRead < 4) break;
+
+                            if (BitConverter.IsLittleEndian) Array.Reverse(headerBytes);
+                            int frameSize = BitConverter.ToInt32(headerBytes, 0);
+
+                            byte[] frameData = new byte[frameSize];
+                            int totalRead = 0;
+
+                            while (totalRead < frameSize)
                             {
-                                // 1. Başlığı (4 Byte Boyut) Oku
-                                byte[] headerBytes = new byte[4];
-                                int headerRead = await stream.ReadAsync(headerBytes, 0, 4);
-                                if (headerRead == 0) break;
-
-                                if (BitConverter.IsLittleEndian)
-                                    Array.Reverse(headerBytes);
-
-                                int frameSize = BitConverter.ToInt32(headerBytes, 0);
-
-                                // 2. Asıl Veriyi Oku
-                                byte[] frameData = new byte[frameSize];
-                                int totalRead = 0;
-
-                                while (totalRead < frameSize)
-                                {
-                                    int read = await stream.ReadAsync(frameData, totalRead, frameSize - totalRead);
-                                    if (read == 0) throw new Exception("Bağlantı koptu.");
-                                    totalRead += read;
-                                }
-
-                                // 3. Veriyi Yakaladık! Arayüz projesine fırlatıyoruz
-                                OnFrameReceived?.Invoke(frameData);
+                                int read = await stream.ReadAsync(frameData, totalRead, frameSize - totalRead);
+                                if (read == 0) throw new Exception("Veri akışı kesildi.");
+                                totalRead += read;
                             }
+
+                            OnFrameReceived?.Invoke(frameData);
                         }
                     }
-                    catch (Exception streamEx)
+                    catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"[TCP Yayın Uyarısı]: {streamEx.Message}");
+                        OnError?.Invoke($"Bağlantı koptu: {ex.Message}");
                     }
                     finally
                     {
                         client.Dispose();
                         OnDisconnected?.Invoke();
-                        System.Diagnostics.Debug.WriteLine("[TCP] İstemci bağlantısı sonlandı, yeni yayın bekleniyor...");
                     }
                 }
             }
             catch (Exception ex)
             {
-                if (_isReceiving)
-                    OnError?.Invoke(ex.Message);
+                if (_isReceiving) OnError?.Invoke($"Sunucu hatası: {ex.Message}");
             }
             finally
             {

@@ -41,6 +41,7 @@ class MainActivity: FlutterActivity() {
     private var virtualDisplay: VirtualDisplay? = null
     private var isStreaming = false
     private var udpSocket: DatagramSocket? = null
+    private var targetIpAddress = "192.168.137.1" // Varsayılan IP
 
     // Flutter'a canlı veri fırlatacağımız hortum
     private var eventSink: io.flutter.plugin.common.EventChannel.EventSink? = null
@@ -135,6 +136,9 @@ class MainActivity: FlutterActivity() {
         ) { call, result ->
             when (call.method) {
                 "startCapture" -> {
+                    // YENİ: Flutter'dan gelen IP adresini yakalıyoruz
+                    targetIpAddress = call.argument<String>("ip") ?: "127.0.0.1"
+
                     startActivityForResult(projectionManager.createScreenCaptureIntent(), REQUEST_CODE_CAPTURE)
                     result.success("İzin penceresi açıldı")
                 }
@@ -352,9 +356,8 @@ class MainActivity: FlutterActivity() {
 
     private fun streamVideoData() {
         try {
-            val pcIpAddress = "192.168.137.1"
             val port = 50000
-            val tcpSocket = java.net.Socket(pcIpAddress, port)
+            val tcpSocket = java.net.Socket(targetIpAddress, port)
             val outputStream = tcpSocket.getOutputStream()
             val bufferInfo = android.media.MediaCodec.BufferInfo()
 
