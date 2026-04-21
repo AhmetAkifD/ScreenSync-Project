@@ -15,13 +15,13 @@ using System.Windows.Shapes;
 
 namespace ScreenSync.Desktop.User_Controls
 {
-    /// <summary>
-    /// Interaction logic for DeviceBoxes.xaml
-    /// </summary>
     public partial class DeviceBoxes : UserControl
     {
         private bool _isFavorite = false;
         public event Action<string> OnStartClicked; // Cihaz IP'sini dışarı fırlatır
+
+        public enum DeviceStatus { Disconnected, Ready, Streaming }
+        public enum ConnectionType { Usb, Wifi }
         public DeviceBoxes(string deviceName, string ipAddress)
         {
             InitializeComponent();
@@ -68,6 +68,22 @@ namespace ScreenSync.Desktop.User_Controls
             IconFavorite.Fill = isFavorite ? new SolidColorBrush(Colors.Gold) : new SolidColorBrush(Color.FromRgb(85, 85, 85));
             // Tooltip'i güncelle
             BtnFavorite.ToolTip = isFavorite ? "Favorilerden Çıkar" : "Favorilere Ekle";
+        }
+
+        // 1. Durum LED'lerini yöneten TEK fonksiyon
+        public void SetStatus(DeviceStatus status)
+        {
+            // Hangisi aktifse onun Opacity'si 1.0 olur, diğerleri anında 0.2'ye düşer
+            LightDisconnected.Opacity = (status == DeviceStatus.Disconnected) ? 1.0 : 0.2;
+            LightReady.Opacity = (status == DeviceStatus.Ready) ? 1.0 : 0.2;
+            LightStreaming.Opacity = (status == DeviceStatus.Streaming) ? 1.0 : 0.2;
+        }
+
+        // 2. Bağlantı LED'lerini yöneten TEK fonksiyon
+        public void SetConnection(ConnectionType type)
+        {
+            LightUsb.Opacity = (type == ConnectionType.Usb) ? 1.0 : 0.2;
+            LightWifi.Opacity = (type == ConnectionType.Wifi) ? 1.0 : 0.2;
         }
     }
 }
