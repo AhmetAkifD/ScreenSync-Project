@@ -42,6 +42,9 @@ class MainActivity: FlutterActivity() {
     private var isStreaming = false
     private var udpSocket: DatagramSocket? = null
     private var targetIpAddress = "192.168.137.1" // Varsayılan IP
+    private var commandSocket: java.net.Socket? = null
+    private var commandOut: java.io.PrintWriter? = null
+    private var commandIn: java.io.BufferedReader? = null
 
     // Flutter'a canlı veri fırlatacağımız hortum
     private var eventSink: io.flutter.plugin.common.EventChannel.EventSink? = null
@@ -136,11 +139,62 @@ class MainActivity: FlutterActivity() {
         ) { call, result ->
             when (call.method) {
                 "startCapture" -> {
-                    // YENİ: Flutter'dan gelen IP adresini yakalıyoruz
                     targetIpAddress = call.argument<String>("ip") ?: "127.0.0.1"
+                    println("[KOTLIN] startCapture tetiklendi. Hedef IP: $targetIpAddress")
 
-                    startActivityForResult(projectionManager.createScreenCaptureIntent(), REQUEST_CODE_CAPTURE)
-                    result.success("İzin penceresi açıldı")
+                    Thread {
+                        try {
+                            if (commandSocket == null || commandSocket?.isClosed == true) {
+                                println("[KOTLIN] 50000 portuna (Komut) bağlanmaya çalışılıyor...")
+                                commandSocket = java.net.Socket(targetIpAddress, 50000)
+                                commandOut = java.io.PrintWriter(commandSocket!!.getOutputStream(), true)
+                                commandIn = java.io.BufferedReader(java.io.InputStreamReader(commandSocket!!.getInputStream()))
+
+                                println("[KOTLIN] Bağlantı başarılı! HELO mesajı atılıyor.")
+                                commandOut?.println("HELO|${android.os.Build.MODEL}")
+                            }
+
+                            println("[KOTLIN] PC'ye REQ_STREAM (Yayın İsteği) gönderiliyor...")
+                            commandOut?.println("REQ_STREAM")
+
+                            println("[KOTLIN] PC'nin cevabı bekleniyor (Döngüye girildi)...")
+                            while (true) {
+                                val rawResponse = commandIn?.readLine()
+                                println("[KOTLIN] Soketten okunan ham veri: '$rawResponse'")
+
+                                if (rawResponse == null) {
+                                    println("[KOTLIN] PC bağlantıyı kesti veya yanıt yok. Döngüden çıkılıyor.")
+                                    break
+                                }
+
+                                val response = rawResponse.trim()
+
+                                if (response == "APPROVE_STREAM") {
+                                    println("[KOTLIN] --- PC ONAYLADI! Ekran kaydetme izni (Intent) açılıyor ---")
+                                    Handler(Looper.getMainLooper()).post {
+                                        startActivityForResult(projectionManager.createScreenCaptureIntent(), REQUEST_CODE_CAPTURE)
+                                    }
+                                    break // Onay alındı, döngüden çık
+                                }
+                                else if (response == "REJECT_STREAM") {
+                                    println("[KOTLIN] --- PC REDDETTİ! Yayın iptal ---")
+                                    // Kullanıcı veya Flutter arayüzü bilsin diye event fırlatıyoruz
+                                    Handler(Looper.getMainLooper()).post {
+                                        eventSink?.success(mapOf("type" to "stream_rejected"))
+                                    }
+                                    break // Reddedildi, döngüden çık
+                                }
+                                else {
+                                    println("[KOTLIN] Tanımlanamayan bir komut geldi: $response")
+                                }
+                            }
+                        } catch (e: Exception) {
+                            println("[KOTLIN - HATA] Komut Kanalı patladı: ${e.message}")
+                            e.printStackTrace()
+                        }
+                    }.start()
+
+                    result.success("İstek işleniyor...")
                 }
                 "stopCapture" -> {
                     isStreaming = false
@@ -335,7 +389,7 @@ class MainActivity: FlutterActivity() {
 
     private fun streamVideoData() {
         try {
-            val port = 50000
+            val port = 50001
             val tcpSocket = java.net.Socket(targetIpAddress, port)
             val outputStream = tcpSocket.getOutputStream()
             val bufferInfo = android.media.MediaCodec.BufferInfo()

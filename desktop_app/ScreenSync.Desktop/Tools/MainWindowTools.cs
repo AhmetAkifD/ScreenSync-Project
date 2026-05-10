@@ -74,34 +74,42 @@ namespace ScreenSync.Desktop.Tools
                 string fileName = File.Exists(adbPath) ? adbPath : "adb";
 
                 // Gizli bir CMD işlemi hazırlıyoruz
-                ProcessStartInfo processInfo = new ProcessStartInfo
+                ProcessStartInfo processInfo1 = new ProcessStartInfo
                 {
                     FileName = fileName,
                     Arguments = "reverse tcp:50000 tcp:50000",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
-                    CreateNoWindow = true // Siyah CMD ekranı çıkmasın!
+                    CreateNoWindow = true
                 };
 
-                using (Process process = Process.Start(processInfo))
+                using (Process process = Process.Start(processInfo1))
                 {
-                    process.WaitForExit(); // Komutun bitmesini bekle
-                    string error = process.StandardError.ReadToEnd();
-
-                    if (process.ExitCode == 0)
+                    process.WaitForExit();
+                    if (process.ExitCode != 0)
                     {
-                        // Başarılı
-                        return true;
-                    }
-                    else
-                    {
-                        // Telefon takılı değilse veya USB hata ayıklama kapalıysa
-                        MessageBox.Show($"ADB Hatası: Telefonun USB Hata Ayıklama modunda takılı olduğundan emin olun.\nDetay: {error}",
-                                        "Bağlantı Kurulamadı", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        string error = process.StandardError.ReadToEnd();
+                        MessageBox.Show($"ADB Hatası: {error}", "Bağlantı Kurulamadı", MessageBoxButton.OK, MessageBoxImage.Warning);
                         return false;
                     }
                 }
+                ProcessStartInfo processInfo2 = new ProcessStartInfo
+                {
+                    FileName = fileName,
+                    Arguments = "reverse tcp:50001 tcp:50001",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (Process process = Process.Start(processInfo2))
+                {
+                    process.WaitForExit(); // Bunu da başarıyla kurmasını bekle
+                }
+                
+                return true;
             }
             catch (Exception ex)
             {

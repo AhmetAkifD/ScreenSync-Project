@@ -1,5 +1,6 @@
 using ScreenSync.Desktop.Tools;
 using ScreenSync.Desktop.User_Controls;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -16,6 +17,7 @@ namespace ScreenSync.Desktop
         private bool _isUserWantsToSee = false; // Kullanıcı "Yayını Başlat" dedi mi?
         // Ekranda yöneteceğimiz aktif cihaz kutusu
         private DeviceBoxes _activeDeviceBox;
+        private bool _isPopupOpen = false;
 
         public MainWindow()
         {
@@ -40,15 +42,46 @@ namespace ScreenSync.Desktop
                 if (_isUserWantsToSee) _mainWindowTools.DisplayImage(img);
             };
 
-            // VERİ GELDİĞİ AN (LED'ler burada güncelleniyor)
-            _syncManager.OnFirstDataDetected += () => {
+            _syncManager.OnDeviceReady += (deviceName) => {
                 Dispatcher.Invoke(() => {
-                    StatusLight.Fill = Brushes.Green;
-                    TxtLightStatus.Text = "Veri Akışı Sağlandı!";
-                    BtnShowStream.IsEnabled = true;
+                    StatusLight.Fill = Brushes.Yellow; // Bekleme durumu
+                    TxtLightStatus.Text = $"{deviceName} Bağlandı, Yayın Bekleniyor...";
+                    _activeDeviceBox.SetStatus(DeviceStatus.Ready); // Kutuyu Yeşil Yap
+                });
+            };
 
-                    // Kutu LED'i: Artık cihaz "Ready" (Hazır) konumunda
-                    _activeDeviceBox.SetStatus(DeviceStatus.Ready);
+            _syncManager.OnStreamRequested += () => {
+                if (_isPopupOpen) return;
+
+                Dispatcher.Invoke(() => {
+                    _isPopupOpen = true;
+
+                    Debug.WriteLine("[C#] Ekrana yayın isteği Popup'ı çıkarıldı.");
+                    var result = MessageBox.Show(
+                        "Galaxy A56 cihazı ekranını paylaşmak istiyor. Onaylıyor musunuz?",
+                        "Gelen Yayın İsteği",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Information
+                    );
+
+                    _isPopupOpen = false;
+
+                    if (result == MessageBoxResult.Yes)
+                    {
+                        Debug.WriteLine("[C#] Kullanıcı popup'ta EVET'e bastı.");
+                        _syncManager.ApproveStream();
+                        _activeDeviceBox.SetStatus(DeviceStatus.Streaming);
+                        _isUserWantsToSee = true;
+
+                        StatusLight.Fill = Brushes.Green;
+                        TxtLightStatus.Text = "Yayın Aktif!";
+                    }
+                    else
+                    {
+                        // İŞTE EKSİK OLAN KISIM BURASIYDI
+                        Debug.WriteLine("[C#] Kullanıcı popup'ta HAYIR'a bastı.");
+                        _syncManager.RejectStream();
+                    }
                 });
             };
 
@@ -59,11 +92,11 @@ namespace ScreenSync.Desktop
         {
             if (_mainWindowTools.SetupAdbReverse())
             {
-                _syncManager.StartServer(VIDEO_PORT);
-                BtnListenPort.IsEnabled = false;
-                BtnListenPort.Content = "Port Dinleniyor...";
+                // ARTIK VİDEO DEĞİL, SADECE KOMUT KANALINI (50000) AÇIYORUZ
+                _ = _syncManager.StartCommandServer(50000);
 
-                // ADB Reverse başarılıysa kesinlikle USB üzerindeyiz
+                BtnListenPort.IsEnabled = false;
+                BtnListenPort.Content = "Tünel Açık";
                 _activeDeviceBox.SetConnection(ConnectionType.Usb);
             }
         }
