@@ -150,6 +150,9 @@ namespace ScreenSync.Desktop.Tools
                 string adbPath = Path.Combine(localAppData, @"Android\Sdk\platform-tools\adb.exe");
                 string fileName = File.Exists(adbPath) ? adbPath : "adb";
 
+                RunCmdCommand($"{fileName} reverse --remove-all");
+                LogService.Info("Eski ADB tünelleri temizlendi.");
+                
                 // İki port için ProcessStartInfo kod tekrarından kurtulup yardımcı CMD metoduna gönderiyoruz
                 bool isPort50000Ready = RunCmdCommand($"{fileName} reverse tcp:50000 tcp:50000");
                 bool isPort50001Ready = RunCmdCommand($"{fileName} reverse tcp:50001 tcp:50001");
