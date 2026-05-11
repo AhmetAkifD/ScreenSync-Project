@@ -55,7 +55,10 @@ namespace ScreenSync.Network
                     }
                     catch (Exception ex)
                     {
-                        OnError?.Invoke($"Bağlantı koptu: {ex.Message}");
+                        if (_isReceiving && !ex.Message.Contains("iptal") && !ex.Message.Contains("aborted"))
+                        {
+                            OnError?.Invoke($"Sunucu hatası: {ex.Message}");
+                        }
                     }
                     finally
                     {

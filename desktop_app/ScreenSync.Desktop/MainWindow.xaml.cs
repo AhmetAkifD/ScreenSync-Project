@@ -1,72 +1,70 @@
+using ScreenSync.Desktop.Services;
 using ScreenSync.Desktop.Tools;
+using ScreenSync.Desktop.User_Controls;
 using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 
 namespace ScreenSync.Desktop
 {
     public partial class MainWindow : Window
     {
-        private ScreenWindow? _screenWindow;
-        private MainWindowTools _mainWindowTools;
+        private MainWindowTools _tools;
         private SyncManager _syncManager;
+        private DeviceBoxes _activeDeviceBox;
+        
         private const int VIDEO_PORT = 50000;
-        private bool _isUserWantsToSee = false; // Kullanıcı "Yayını Başlat" dedi mi?
+        internal bool IsPopupOpen = false;
+        internal bool IsUserWantsToSee = false;
 
         public MainWindow()
         {
             InitializeComponent();
+            
+            _tools = new MainWindowTools(this);
             _syncManager = new SyncManager();
-            _mainWindowTools = new MainWindowTools(this);
-
-            // Arka plandan gelen olayları dinliyoruz
-            _syncManager.OnStatusChanged += _mainWindowTools.UpdateStatus;
-            _syncManager.OnStreamStopped += HandleStreamStopped;
-            // ÖNEMLİ: Görüntü gelince hemen açma, önce bir kontrol et
-            _syncManager.OnImageDecoded += (img) => {
-                if (_isUserWantsToSee) _mainWindowTools.DisplayImage(img);
-            };
-            // YENİ: Veri gelince ışığı yak ve butonu aç
-            _syncManager.OnFirstDataDetected += () => {
-                Dispatcher.Invoke(() => {
-                    StatusLight.Fill = Brushes.Green;
-                    TxtLightStatus.Text = "Veri Akışı Sağlandı!";
-                    BtnShowStream.IsEnabled = true; // Artık kullanıcı yayını başlatabilir
-                });
-            };
+            _activeDeviceBox = _tools.CreateAndAttachDeviceBox("Galaxy A56", "127.0.0.1 (USB)");
+            
+            SubscribeToEvents();
+            
+            this.Loaded += (s, e) => _tools.OpenLogConsole();
             this.Closed += (s, e) => _syncManager.StopAll();
+        }
+
+        private void SubscribeToEvents()
+        {
+            _syncManager.OnStatusChanged += (msg) => _tools.SetSystemStatus(msg, System.Windows.Media.Brushes.Orange);
+            _syncManager.OnDeviceReady += (deviceName) => _tools.SetDeviceReadyState(deviceName, _activeDeviceBox);
+            _syncManager.OnStreamRequested += () => _tools.HandleIncomingStreamRequest(_syncManager, _activeDeviceBox);
+            _syncManager.OnImageDecoded += (img) => 
+            {
+                if (IsUserWantsToSee) _tools.ShowDecodedImage(img);
+            };
+            _syncManager.OnStreamStopped += () => 
+            {
+                _tools.SetDisconnectedState(_activeDeviceBox);
+                IsUserWantsToSee = false;
+                LogService.Info("Yayın durduruldu ve arayüz sıfırlandı.");
+            };
         }
 
         private void BtnListenPort_Click(object sender, RoutedEventArgs e)
         {
-            // Önce USB köprüsünü kur, sonra server'ı aç
-            if (_mainWindowTools.SetupAdbReverse())
+            if (_tools.SetupAdbPortForwarding())
             {
-                _syncManager.StartServer(VIDEO_PORT);
+                _ = _syncManager.StartCommandServer(VIDEO_PORT);
+
                 BtnListenPort.IsEnabled = false;
-                BtnListenPort.Content = "Port Dinleniyor...";
+                BtnListenPort.Content = "Tünel Açık";
+                _activeDeviceBox.SetConnection(DeviceBoxes.ConnectionType.Usb);
+                
+                LogService.Info($"Komut sunucusu {VIDEO_PORT} portunda dinlenmeye başlandı.");
             }
         }
 
         private void BtnShowStream_Click(object sender, RoutedEventArgs e)
         {
-            _isUserWantsToSee = true;
-            BtnShowStream.IsEnabled = false;
-            BtnShowStream.Content = "Yayın Aktif";
+            IsUserWantsToSee = true;
+            _tools.SetStreamActiveState(_activeDeviceBox);
+            LogService.Info("Kullanıcı akışı izlemeye başladı.");
         }
-
-        private void HandleStreamStopped()
-        {
-            Dispatcher.Invoke(() => {
-                _isUserWantsToSee = false;
-                StatusLight.Fill = Brushes.Red;
-                TxtLightStatus.Text = "Bağlantı Koptu";
-                BtnShowStream.IsEnabled = false;
-                BtnListenPort.IsEnabled = true;
-                _mainWindowTools.HandleStreamStopped();
-            });
-        }
-
-
     }
 }

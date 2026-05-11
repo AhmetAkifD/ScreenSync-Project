@@ -1,15 +1,12 @@
-﻿using ScreenSync.Desktop;
+﻿using ScreenSync.Desktop.Services;
+using ScreenSync.Desktop.User_Controls;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Threading;
-using System.IO;
+using static ScreenSync.Desktop.User_Controls.DeviceBoxes;
 
 namespace ScreenSync.Desktop.Tools
 {
@@ -23,29 +20,115 @@ namespace ScreenSync.Desktop.Tools
             _mainWindow = mainWindow;
         }
 
-        public void UpdateStatus(string message)
+        // --- 1. ARAYÜZ (UI) KURULUM METOTLARI ---
+
+        public DeviceBoxes CreateAndAttachDeviceBox(string deviceName, string ipAddress)
+        {
+            var deviceBox = new DeviceBoxes(deviceName, ipAddress);
+            deviceBox.SetStatus(DeviceStatus.Disconnected);
+            deviceBox.SetConnection(ConnectionType.Usb);
+            
+            _mainWindow.PanelActiveDevices.Children.Add(deviceBox);
+            return deviceBox;
+        }
+
+        public void OpenLogConsole()
+        {
+            LogWindow logWindow = new LogWindow();
+            logWindow.DataContext = new { Logs = LogService.Logs };
+            logWindow.Show();
+            
+            // Başlangıçta ana pencerenin arkasında kalmaması için
+            logWindow.Activate(); 
+            LogService.Info("WPF Arayüzü yüklendi ve Log ekranı başlatıldı.");
+        }
+
+        // --- 2. DURUM GÜNCELLEME METOTLARI ---
+
+        public void SetSystemStatus(string message, Brush lightColor)
         {
             _mainWindow.Dispatcher.Invoke(() => {
-                // Eski StatusText yerine yeni eklediğimiz TxtLightStatus'u kullanıyoruz
                 _mainWindow.TxtLightStatus.Text = message;
-                // Sistemden genel bir bilgi geldiğinde ışığı turuncu yapıyoruz (Örn: Dinleniyor...)
-                _mainWindow.StatusLight.Fill = Brushes.Orange;
+                _mainWindow.StatusLight.Fill = lightColor;
             });
         }
 
-        public void HandleStreamStopped()
+        public void SetDeviceReadyState(string deviceName, DeviceBoxes activeDeviceBox)
         {
             _mainWindow.Dispatcher.Invoke(() => {
-                _mainWindow.TxtLightStatus.Text = "Bağlantı koptu. Yeni bağlantı bekleniyor...";
-                // Bağlantı koptuğunda ışık anında kırmızıya dönecek
-                _mainWindow.StatusLight.Fill = Brushes.Red;
+                SetSystemStatus($"{deviceName} Bağlandı, Yayın Bekleniyor...", Brushes.Yellow);
+                activeDeviceBox.SetStatus(DeviceStatus.Ready);
+                LogService.Info($"Cihaz el sıkışması tamamlandı: {deviceName}");
+            });
+        }
+
+        public void SetStreamActiveState(DeviceBoxes activeDeviceBox)
+        {
+            _mainWindow.Dispatcher.Invoke(() => {
+                SetSystemStatus("Yayın Aktif!", Brushes.Green);
+                activeDeviceBox.SetStatus(DeviceStatus.Streaming);
+                
+                _mainWindow.BtnShowStream.IsEnabled = false;
+                _mainWindow.BtnShowStream.Content = "Yayın Aktif";
+            });
+        }
+
+        public void SetDisconnectedState(DeviceBoxes activeDeviceBox)
+        {
+            _mainWindow.Dispatcher.Invoke(() => {
+                SetSystemStatus("Bağlantı koptu. Yeni bağlantı bekleniyor...", Brushes.Red);
+                
+                _mainWindow.BtnShowStream.IsEnabled = false;
+                _mainWindow.BtnListenPort.IsEnabled = true;
+                _mainWindow.BtnListenPort.Content = "Portu Dinlemeye Başla";
+                
+                activeDeviceBox.SetStatus(DeviceStatus.Disconnected);
 
                 _screenWindow?.Close();
                 _screenWindow = null;
             });
         }
 
-        public void DisplayImage(WriteableBitmap image)
+        // --- 3. İŞ MANTIĞI VE VİDEO YÖNETİMİ ---
+
+        public void HandleIncomingStreamRequest(SyncManager syncManager, DeviceBoxes activeDeviceBox)
+        {
+            if (_mainWindow.IsPopupOpen || _mainWindow.IsUserWantsToSee) 
+            {
+                LogService.Info("Zaten aktif bir yayın veya istek var. Yeni istek reddedildi.");
+                return; 
+            }
+
+            _mainWindow.Dispatcher.Invoke(() => {
+                _mainWindow.IsPopupOpen = true; // Değişkeni burada güncelliyoruz
+                LogService.Info("Telefondan yayın isteği geldi, kullanıcı onayı bekleniyor...");
+
+                var result = MessageBox.Show(
+                    "Galaxy A56 cihazı ekranını paylaşmak istiyor. Onaylıyor musunuz?",
+                    "Gelen Yayın İsteği",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Information
+                );
+
+                _mainWindow.IsPopupOpen = false;
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    LogService.Info("Kullanıcı yayın isteğini ONAYLADI.");
+                    syncManager.ApproveStream();
+                    SetStreamActiveState(activeDeviceBox);
+            
+                    _mainWindow.IsUserWantsToSee = true; // Yayını izleme izni verildi
+                }
+                else
+                {
+                    LogService.Error("Kullanıcı yayın isteğini REDDETTİ.");
+                    syncManager.RejectStream();
+                }
+            });
+        }
+
+        public void ShowDecodedImage(WriteableBitmap image)
         {
             _mainWindow.Dispatcher.Invoke(() => {
                 if (_screenWindow == null)
@@ -54,61 +137,70 @@ namespace ScreenSync.Desktop.Tools
                     _screenWindow.Closed += (s, e) => _screenWindow = null;
                     _screenWindow.Show();
 
-                    // Sen "Yayını Başlat" dediğinde ve pencere açıldığında ışık Turkuaz olacak
-                    _mainWindow.TxtLightStatus.Text = "Ekran Aktarılıyor...";
-                    _mainWindow.StatusLight.Fill = Brushes.Cyan;
+                    SetSystemStatus("Ekran Aktarılıyor...", Brushes.Cyan);
                 }
                 _screenWindow.ScreenViewer.Source = image;
             });
         }
 
-        public bool SetupAdbReverse()
+        // --- 4. TERMINAL (CMD) VE AĞ YÖNETİMİ ---
+
+        public bool SetupAdbPortForwarding()
         {
             try
             {
-                // Bilgisayardaki kullanıcı adından (ahmet) yola çıkarak ADB'nin yerini buluyoruz
                 string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                 string adbPath = Path.Combine(localAppData, @"Android\Sdk\platform-tools\adb.exe");
-
-                // Eğer Android Studio varsayılan yere kurmadıysa, sistem "PATH" üzerinden 'adb' komutunu dener
                 string fileName = File.Exists(adbPath) ? adbPath : "adb";
 
-                // Gizli bir CMD işlemi hazırlıyoruz
-                ProcessStartInfo processInfo = new ProcessStartInfo
-                {
-                    FileName = fileName,
-                    Arguments = "reverse tcp:50000 tcp:50000",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true // Siyah CMD ekranı çıkmasın!
-                };
+                RunCmdCommand($"{fileName} reverse --remove-all");
+                LogService.Info("Eski ADB tünelleri temizlendi.");
+                
+                // İki port için ProcessStartInfo kod tekrarından kurtulup yardımcı CMD metoduna gönderiyoruz
+                bool isPort50000Ready = RunCmdCommand($"{fileName} reverse tcp:50000 tcp:50000");
+                bool isPort50001Ready = RunCmdCommand($"{fileName} reverse tcp:50001 tcp:50001");
 
-                using (Process process = Process.Start(processInfo))
+                if (!isPort50000Ready || !isPort50001Ready)
                 {
-                    process.WaitForExit(); // Komutun bitmesini bekle
-                    string error = process.StandardError.ReadToEnd();
-
-                    if (process.ExitCode == 0)
-                    {
-                        // Başarılı
-                        return true;
-                    }
-                    else
-                    {
-                        // Telefon takılı değilse veya USB hata ayıklama kapalıysa
-                        MessageBox.Show($"ADB Hatası: Telefonun USB Hata Ayıklama modunda takılı olduğundan emin olun.\nDetay: {error}",
-                                        "Bağlantı Kurulamadı", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return false;
-                    }
+                    return false;
                 }
+
+                LogService.Info("ADB Reverse port yönlendirmeleri CMD üzerinden başarıyla açıldı.");
+                return true;
             }
             catch (Exception ex)
             {
+                LogService.Error($"ADB komutu çalıştırılamadı. Hata: {ex.Message}");
                 MessageBox.Show($"ADB komutu çalıştırılamadı. Android SDK yüklü mü?\nHata: {ex.Message}",
                                 "Sistem Hatası", MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }
+        }
+
+        private bool RunCmdCommand(string command)
+        {
+            ProcessStartInfo processInfo = new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = $"/c {command}",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using (Process process = Process.Start(processInfo))
+            {
+                process.WaitForExit();
+                if (process.ExitCode != 0)
+                {
+                    string error = process.StandardError.ReadToEnd();
+                    LogService.Error($"CMD Hatası: {error}");
+                    MessageBox.Show($"Terminal Hatası: {error}", "Bağlantı Kurulamadı", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return false;
+                }
+            }
+            return true;
         }
     }
 }

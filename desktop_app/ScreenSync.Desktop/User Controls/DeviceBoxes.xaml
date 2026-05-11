@@ -5,7 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              mc:Ignorable="d" 
              d:DesignHeight="150" d:DesignWidth="250">
-    <Border CornerRadius="12" Background="#2C2F33" Padding="15" Height="130" Margin="10">
+    <Border CornerRadius="12" Background="#2C2F33" Padding="15" Height="130" Margin="10" MinWidth="230" MinHeight="130">
     <Border.Effect>
         <DropShadowEffect BlurRadius="12" ShadowDepth="3" Opacity="0.4"/>
     </Border.Effect>
