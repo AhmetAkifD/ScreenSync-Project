@@ -58,6 +58,27 @@ class MainActivityTools(private val activity: Activity) {
         projectionManager = activity.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
     }
 
+    fun stopCaptureInternal() {
+        if (!isStreaming) return
+        isStreaming = false
+        activity.stopService(Intent(activity, ScreenCaptureService::class.java))
+        Handler(Looper.getMainLooper()).post {
+            eventSink?.success(mapOf("type" to "stream_stopped"))
+        }
+        println("[KOTLIN] Yayın sistem tarafından (Arka plan/Ekran Kilidi) durduruldu.")
+    }
+
+    val screenOffReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SCREEN_OFF) {
+                if (isStreaming) {
+                    println("[KOTLIN] Ekran kapandı! Çökmeyi önlemek için yayın kesiliyor.")
+                    stopCaptureInternal()
+                }
+            }
+        }
+    }
+
     // --- 1. AĞ VE CİHAZ KEŞFİ (WIFI P2P) METOTLARI ---
 
     private val peerListListener = WifiP2pManager.PeerListListener { peerList ->
@@ -236,9 +257,7 @@ class MainActivityTools(private val activity: Activity) {
     }
 
     fun stopCapture(result: MethodChannel.Result) {
-        isStreaming = false
-        activity.stopService(Intent(activity, ScreenCaptureService::class.java))
-        eventSink?.success(mapOf("type" to "stream_stopped"))
+        stopCaptureInternal()
         result.success("Yayın durduruldu")
     }
 

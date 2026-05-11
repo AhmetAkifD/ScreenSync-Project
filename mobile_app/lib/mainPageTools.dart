@@ -14,6 +14,7 @@ class MainPageTools {
   bool isStreaming = false;
   bool isDiscovering = false;
   bool isConnected = false;
+  bool isStreamLoading = false;
   String targetIp = "192.168.137.1";
   List<Map<String, String>> foundDevices = [];
 
@@ -54,16 +55,19 @@ class MainPageTools {
       }
       else if (type == 'stream_started') {
         isStreaming = true;
+        isStreamLoading = false;
         statusText = "Ekran Paylaşılıyor!";
         statusColor = Colors.deepPurpleAccent;
         LogService.info("Ekran yayını başlatıldı.");
       }
       else if (type == 'stream_rejected') {
+        isStreamLoading = false;
         LogService.error("Yayın izni masaüstü tarafından REDDEDİLDİ.");
         _showSnackBar(context, 'Ekran paylaşım izni reddedildi.');
       }
       else if (type == 'stream_stopped') {
         isStreaming = false;
+        isStreamLoading = false;
         statusText = "Yayın Durduruldu";
         statusColor = Colors.green;
         LogService.info("Masaüstünden yayın durdurma sinyali alındı.");
@@ -174,6 +178,8 @@ class MainPageTools {
     }
 
     try {
+      isStreamLoading = true;
+      updateUI();
       if (isStreaming) {
         LogService.info("Yayını durdurma isteği gönderiliyor...");
         await platform.invokeMethod('stopCapture');
@@ -182,6 +188,8 @@ class MainPageTools {
         await platform.invokeMethod('startCapture', {'ip': targetIp});
       }
     } on PlatformException catch (e) {
+      isStreamLoading = false;
+      updateUI();
       LogService.error("Yayın Hatası: ${e.message}");
     }
   }

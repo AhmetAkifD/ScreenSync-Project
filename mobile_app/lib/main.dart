@@ -107,8 +107,13 @@ class _HomeScreenState extends State<HomeScreen> {
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
             ),
-            onPressed: () => tools.toggleScreenCapture(context),
-            child: Text(
+            onPressed: tools.isStreamLoading ? null : () => tools.toggleScreenCapture(context),
+            child: tools.isStreamLoading
+                ? const SizedBox(
+                width: 20, height: 20,
+                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+            )
+                : Text(
               tools.isStreaming ? "Yayını Durdur" : "Yayını Başlat",
               style: const TextStyle(fontSize: 16),
             ),

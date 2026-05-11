@@ -85,4 +85,21 @@ class MainActivity: FlutterActivity() {
         super.onDestroy()
         unregisterReceiver(receiver)
     }
+
+    override fun onResume() {
+        super.onResume()
+        // Ekran kapanma dinleyicisini aktif et
+        val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
+        registerReceiver(tools.screenOffReceiver, filter)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Uygulama arka plana geçtiğinde dinleyiciyi kaldır (Hafıza sızıntısını önler)
+        try {
+            unregisterReceiver(tools.screenOffReceiver)
+        } catch (e: Exception) {
+            // Zaten kayıtlı değilse hata vermesini engelle
+        }
+    }
 }
