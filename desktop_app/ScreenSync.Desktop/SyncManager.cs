@@ -36,17 +36,24 @@ namespace ScreenSync.Desktop
 
         private void InitializeVideoComponents()
         {
-            _decoder = new FFmpegDecoder();
-            _tcpServer = new TcpServer(); // Sadece 50001 (Video) için
+            _tcpServer?.Stop();
 
-            _tcpServer.OnDisconnected += () => TriggerStreamStopped();
-            _tcpServer.OnError += (err) => TriggerStatusChanged($"Video Hatası: {err}");
+            var newServer = new TcpServer();
+            var newDecoder = new FFmpegDecoder();
 
-            _tcpServer.OnFrameReceived += (frameData) =>
+            newServer.OnDisconnected += () => { if (_tcpServer == newServer) TriggerStreamStopped(); };
+            newServer.OnError += (err) => { if (_tcpServer == newServer) TriggerStatusChanged($"Video Hatası: {err}"); };
+            newServer.OnFrameReceived += (frameData) =>
             {
-                var image = _decoder.DecodeFrame(frameData);
-                if (image != null) OnImageDecoded?.Invoke(image);
+                if (_tcpServer == newServer)
+                {
+                    var image = newDecoder.DecodeFrame(frameData);
+                    if (image != null) OnImageDecoded?.Invoke(image);
+                }
             };
+
+            _tcpServer = newServer;
+            _decoder = newDecoder;
         }
 
         // --- 1. AĞ DİNLEME (LISTENER) METOTLARI ---
@@ -55,6 +62,7 @@ namespace ScreenSync.Desktop
         {
             try
             {
+                _commandListener?.Stop();
                 _commandListener = new TcpListener(IPAddress.Any, port);
                 _commandListener.Start();
                 TriggerStatusChanged($"Komut kanalı {port} portunda dinleniyor...");
@@ -63,7 +71,7 @@ namespace ScreenSync.Desktop
                 {
                     var client = await _commandListener.AcceptTcpClientAsync();
                     _commandStream = client.GetStream();
-                    
+            
                     LogService.Info("Komut kanalına yeni bir bağlantı kabul edildi.");
                     _ = Task.Run(ListenForCommandsAsync); 
                 }
@@ -104,9 +112,8 @@ namespace ScreenSync.Desktop
         public void ApproveStream()
         {
             _tools.SendCommandToDevice(_commandStream, "APPROVE_STREAM");
-
-            _tcpServer.Stop(); // Eski video bağlantılarını temizle
-            LogService.Info("50001 (Video) portu dinlenmeye başlandı!");
+            InitializeVideoComponents();
+            LogService.Info("50001 (Video) portu tertemiz bir şekilde dinlenmeye başlandı!");
             _ = _tcpServer.StartListeningAsync(50001);
         }
 
