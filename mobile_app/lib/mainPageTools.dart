@@ -142,7 +142,7 @@ class MainPageTools {
   }
 
   // --- 4. USB MODU ---
-  void enableUsbMode(BuildContext context) {
+  Future<void> enableUsbMode(BuildContext context) async {
     isConnected = true;
     targetIp = "127.0.0.1"; // ADB Reverse IP'si
     isDiscovering = false;
@@ -151,7 +151,17 @@ class MainPageTools {
     statusColor = Colors.teal;
     updateUI();
 
-    LogService.info("USB Modu (127.0.0.1) aktif edildi.");
+    try {
+      // YENİ EKLENEN KISIM: Butona basar basmaz C# ile tüneli aç!
+      await platform.invokeMethod('connectCommand', {'ip': targetIp});
+      LogService.info("USB Modu: PC ile komut kanalı (50000) el sıkışması tamamlandı.");
+
+      // Başarılı olursa arayüzdeki yazıyı güncelle
+      statusText = "PC İle Eşleşildi (USB)";
+      updateUI();
+    } catch (e) {
+      LogService.error("Komut kanalına bağlanılamadı. C# tüneli kapalı olabilir: $e");
+    }
     _showSnackBar(context, 'USB Kablosu ile yayına hazır!');
   }
 

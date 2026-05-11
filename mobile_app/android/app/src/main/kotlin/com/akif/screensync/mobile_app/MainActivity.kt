@@ -51,7 +51,8 @@ class MainActivity: FlutterActivity() {
         // 2. Flutter'dan Gelen İstekleri Karşılama Kanalı (MethodChannel)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
-                "startCapture" -> tools.startCapture(call.argument<String>("ip") ?: "127.0.0.1", result)
+                "connectCommand" -> tools.connectCommandChannel(call.argument<String>("ip") ?: "127.0.0.1", result)
+                "startCapture" -> tools.startCapture(result)
                 "stopCapture" -> tools.stopCapture(result)
                 "startDiscovery" -> tools.startDiscovery(result)
                 "stopDiscovery" -> tools.stopDiscovery(result)

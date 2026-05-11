@@ -164,61 +164,72 @@ class MainActivityTools(private val activity: Activity) {
 
     // --- 2. VİDEO VE SOKET KONTROL METOTLARI ---
 
-    fun startCapture(ip: String, result: MethodChannel.Result) {
+    fun connectCommandChannel(ip: String, result: MethodChannel.Result) {
         targetIpAddress = ip
-        println("[KOTLIN] startCapture tetiklendi. Hedef IP: $targetIpAddress")
+        println("[KOTLIN] Erken bağlantı kuruluyor. Hedef: $targetIpAddress")
 
         Thread {
             try {
-                // ZOMBİ SOKET TEMİZLİĞİ: Yeni bağlantıdan önce eskileri mutlaka çöpe atıyoruz.
+                // Varsa eski zombileri temizle
                 try {
                     commandIn?.close()
                     commandOut?.close()
                     commandSocket?.close()
-                    println("[KOTLIN] Eski soket kalıntıları temizlendi.")
                 } catch (e: Exception) { }
 
-                println("[KOTLIN] 50000 portuna (Komut) bağlanmaya çalışılıyor...")
-                commandSocket = Socket(targetIpAddress, 50000)
-                commandOut = PrintWriter(commandSocket!!.getOutputStream(), true)
-                commandIn = BufferedReader(InputStreamReader(commandSocket!!.getInputStream()))
+                commandSocket = java.net.Socket(targetIpAddress, 50000)
+                commandOut = java.io.PrintWriter(commandSocket!!.getOutputStream(), true)
+                commandIn = java.io.BufferedReader(java.io.InputStreamReader(commandSocket!!.getInputStream()))
 
+                // 1. Sadece "Ben geldim" de, yayın isteme!
                 commandOut?.println("HELO|${Build.MODEL}")
-                commandOut?.println("REQ_STREAM")
+                println("[KOTLIN] PC'ye HELO gönderildi. Arka plan dinlemesi başlıyor...")
 
-                println("[KOTLIN] PC'nin cevabı bekleniyor...")
+                // 2. Artık hep uyanık kal ve PC'den gelecek komutları dinle
                 while (true) {
                     val rawResponse = commandIn?.readLine()
 
                     if (rawResponse == null) {
-                        println("[KOTLIN] PC bağlantıyı kesti veya yanıt yok. Döngüden çıkılıyor.")
+                        println("[KOTLIN] PC bağlantıyı kesti. Tünel yıkıldı.")
+                        Handler(Looper.getMainLooper()).post { eventSink?.success(mapOf("type" to "disconnected")) }
                         break
                     }
 
                     val response = rawResponse.trim()
+
                     if (response == "APPROVE_STREAM") {
                         Handler(Looper.getMainLooper()).post {
                             activity.startActivityForResult(projectionManager.createScreenCaptureIntent(), REQUEST_CODE_CAPTURE)
                         }
-                        break
                     }
                     else if (response == "REJECT_STREAM") {
                         notifyStreamRejected()
-                        break
                     }
                     else if (response == "STOP_STREAM") {
-                        println("[KOTLIN] --- PC YAYINI DURDURDU (STOP_STREAM) ---")
                         isStreaming = false
                         Handler(Looper.getMainLooper()).post {
                             mediaProjection?.stop()
                             eventSink?.success(mapOf("type" to "stream_stopped"))
                         }
-                        break
                     }
                 }
             } catch (e: Exception) {
                 println("[KOTLIN - HATA] Komut Kanalı patladı: ${e.message}")
             }
+        }.start()
+
+        result.success("Komut kanalına bağlanıldı")
+    }
+
+    fun startCapture(result: MethodChannel.Result) {
+        if (commandSocket == null || commandSocket?.isClosed == true) {
+            result.error("HATA", "Önce bağlantı kurulmalı!", null)
+            return
+        }
+
+        println("[KOTLIN] PC'ye yayın isteği (REQ_STREAM) gönderiliyor...")
+        Thread {
+            commandOut?.println("REQ_STREAM")
         }.start()
 
         result.success("İstek işleniyor...")
