@@ -6,6 +6,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
+using ScreenSync.Desktop.Services;
+using ScreenSync.Desktop.Tools;
 
 namespace ScreenSync.Desktop
 {
@@ -13,29 +15,32 @@ namespace ScreenSync.Desktop
     {
         private TcpServer _tcpServer;
         private FFmpegDecoder _decoder;
+        private SyncManagerTools _tools;
 
-        // KOMUT KANALI İÇİN YENİ NESNELER
+        // Komut Kanalı Nesneleri
         private TcpListener _commandListener;
         private NetworkStream _commandStream;
 
-        // Arayüze fırlatacağımız olaylar
+        // Dışarıya Açılan Olaylar (Events)
         public event Action<string> OnStatusChanged;
         public event Action<WriteableBitmap> OnImageDecoded;
         public event Action OnStreamStopped;
-
-        // YENİ OLAYLAR (El Sıkışma İçin)
-        public event Action<string> OnDeviceReady; // Cihaz bağlandığında (Yeşil Işık)
-        public event Action OnStreamRequested; // Telefondan istek geldiğinde (Popup)
-
-        private bool _isFirstFrame = true;
+        public event Action<string> OnDeviceReady; 
+        public event Action OnStreamRequested; 
 
         public SyncManager()
         {
-            _decoder = new FFmpegDecoder();
-            _tcpServer = new TcpServer(); // Bu artık sadece 50001 (Video) için kullanılacak
+            _tools = new SyncManagerTools(this);
+            InitializeVideoComponents();
+        }
 
-            _tcpServer.OnDisconnected += () => OnStreamStopped?.Invoke();
-            _tcpServer.OnError += (err) => OnStatusChanged?.Invoke($"Video Hatası: {err}");
+        private void InitializeVideoComponents()
+        {
+            _decoder = new FFmpegDecoder();
+            _tcpServer = new TcpServer(); // Sadece 50001 (Video) için
+
+            _tcpServer.OnDisconnected += () => TriggerStreamStopped();
+            _tcpServer.OnError += (err) => TriggerStatusChanged($"Video Hatası: {err}");
 
             _tcpServer.OnFrameReceived += (frameData) =>
             {
@@ -44,27 +49,32 @@ namespace ScreenSync.Desktop
             };
         }
 
-        // 1. ADIM: Sadece Komut Kanalını Dinlemeye Başla
+        // --- 1. AĞ DİNLEME (LISTENER) METOTLARI ---
+
         public async Task StartCommandServer(int port)
         {
             try
             {
                 _commandListener = new TcpListener(IPAddress.Any, port);
                 _commandListener.Start();
-                OnStatusChanged?.Invoke($"Komut kanalı {port} portunda dinleniyor...");
+                TriggerStatusChanged($"Komut kanalı {port} portunda dinleniyor...");
 
                 while (true)
                 {
                     var client = await _commandListener.AcceptTcpClientAsync();
                     _commandStream = client.GetStream();
-                    _ = Task.Run(ListenForCommands); // Arka planda dinlemeye başla
+                    
+                    LogService.Info("Komut kanalına yeni bir bağlantı kabul edildi.");
+                    _ = Task.Run(ListenForCommandsAsync); 
                 }
             }
-            catch { /* Hata yönetimi */ }
+            catch (Exception ex)
+            {
+                LogService.Error($"Komut sunucusu başlatılamadı: {ex.Message}");
+            }
         }
 
-        // 2. ADIM: Gelen Komutları Oku ve Olay Fırlat
-        private async Task ListenForCommands()
+        private async Task ListenForCommandsAsync()
         {
             try
             {
@@ -72,57 +82,59 @@ namespace ScreenSync.Desktop
                 while (true)
                 {
                     string line = await reader.ReadLineAsync();
-                    if (line == null) break;
+                    if (line == null) 
+                    {
+                        LogService.Info("Komut bağlantısı koptu (Gelen veri null).");
+                        break;
+                    }
 
-                    if (line.StartsWith("HELO|"))
-                    {
-                        string deviceName = line.Split('|')[1];
-                        OnDeviceReady?.Invoke(deviceName);
-                    }
-                    else if (line == "REQ_STREAM")
-                    {
-                        OnStreamRequested?.Invoke();
-                    }
+                    // İşlemeyi Tools sınıfına devret
+                    _tools.ProcessIncomingCommand(line);
                 }
             }
-            catch { OnStreamStopped?.Invoke(); }
+            catch (Exception ex)
+            {
+                LogService.Error($"Komut dinleme döngüsünde hata: {ex.Message}");
+                TriggerStreamStopped();
+            }
         }
 
-        // 3. ADIM: PC'den Onay Verildiğinde Telefondaki Yayını Tetikle
+        // --- 2. DIŞARIYA AÇIK YÖNETİM METOTLARI ---
+
         public void ApproveStream()
         {
-            if (_commandStream != null)
-            {
-                Debug.WriteLine("[C#] Telefona ONAY (APPROVE_STREAM) gönderiliyor...");
+            _tools.SendCommandToDevice(_commandStream, "APPROVE_STREAM");
 
-                // DÜZELTME BURADA: "new System.Text.UTF8Encoding(false)" kullanarak o görünmez BOM karakterini kapatıyoruz!
-                var writer = new StreamWriter(_commandStream, new System.Text.UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
-                writer.WriteLine("APPROVE_STREAM");
-
-                _isFirstFrame = true;
-                _tcpServer.Stop();
-
-                Debug.WriteLine("[C#] 50001 (Video) portu dinlenmeye başlandı!");
-                _ = _tcpServer.StartListeningAsync(50001);
-            }
+            _tcpServer.Stop(); // Eski video bağlantılarını temizle
+            LogService.Info("50001 (Video) portu dinlenmeye başlandı!");
+            _ = _tcpServer.StartListeningAsync(50001);
         }
 
         public void RejectStream()
         {
-            if (_commandStream != null)
-            {
-                Debug.WriteLine("[C#] Telefona RED (REJECT_STREAM) gönderiliyor...");
+            _tools.SendCommandToDevice(_commandStream, "REJECT_STREAM");
+        }
 
-                // BOM'u burada da kapatıyoruz
-                var writer = new StreamWriter(_commandStream, new System.Text.UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
-                writer.WriteLine("REJECT_STREAM");
-            }
+        // Kırmızı buton için durdurma yetkisi
+        public void RequestStopStream()
+        {
+            _tools.SendCommandToDevice(_commandStream, "STOP_STREAM");
+            _tcpServer?.Stop();
         }
 
         public void StopAll()
         {
             _commandListener?.Stop();
             _tcpServer?.Stop();
+            LogService.Info("Tüm sunucular ve soketler kapatıldı.");
         }
+
+        // --- 3. İÇ TETİKLEYİCİLER (INTERNAL TRIGGERS) ---
+        // Tools sınıfının ana sınıftaki (SyncManager) olayları tetikleyebilmesi için
+
+        internal void TriggerDeviceReady(string deviceName) => OnDeviceReady?.Invoke(deviceName);
+        internal void TriggerStreamRequested() => OnStreamRequested?.Invoke();
+        internal void TriggerStreamStopped() => OnStreamStopped?.Invoke();
+        internal void TriggerStatusChanged(string message) => OnStatusChanged?.Invoke(message);
     }
 }
