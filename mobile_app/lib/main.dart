@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'log_page.dart';
+
 void main() {
   runApp(const ScreenSyncApp());
 }
@@ -256,7 +258,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const Spacer(),
 
             // YENİ: USB MODU BUTONU
-            if (!_isConnected) ...[
+
               OutlinedButton.icon(
                 onPressed: _enableUsbMode,
                 icon: const Icon(Icons.usb),
@@ -268,7 +270,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-
+              ElevatedButton.icon(
+                icon: Icon(Icons.bug_report),
+                label: Text("Gelişmiş Log Ekranı"),
+                onPressed: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => LogPage()));
+                },
+              ),
               ElevatedButton.icon(
                 onPressed: _toggleDiscovery,
                 icon: Icon(_isDiscovering ? Icons.stop : Icons.wifi_find),
@@ -280,7 +288,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
-            ],
+
 
             const SizedBox(height: 16),
 
