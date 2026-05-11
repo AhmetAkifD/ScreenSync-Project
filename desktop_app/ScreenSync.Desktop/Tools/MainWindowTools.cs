@@ -93,8 +93,11 @@ namespace ScreenSync.Desktop.Tools
 
         public void HandleIncomingStreamRequest(SyncManager syncManager, DeviceBoxes activeDeviceBox)
         {
-            // ref kullanmak yerine doğrudan MainWindow'daki değişkeni kontrol ediyoruz
-            if (_mainWindow.IsPopupOpen) return;
+            if (_mainWindow.IsPopupOpen || _mainWindow.IsUserWantsToSee) 
+            {
+                LogService.Info("Zaten aktif bir yayın veya istek var. Yeni istek reddedildi.");
+                return; 
+            }
 
             _mainWindow.Dispatcher.Invoke(() => {
                 _mainWindow.IsPopupOpen = true; // Değişkeni burada güncelliyoruz

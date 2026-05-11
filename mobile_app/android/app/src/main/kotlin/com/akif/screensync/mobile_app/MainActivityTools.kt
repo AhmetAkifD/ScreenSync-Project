@@ -349,6 +349,15 @@ class MainActivityTools(private val activity: Activity) {
         } catch (e: Exception) {
             println("Yayın Döngüsü Hatası: ${e.message}")
         }
+        finally {
+            // İŞTE KRİTİK NOKTA: Döngü bittiğinde (hata veya manuel durdurma)
+            // Flutter'a yayının bittiğini garanti ediyoruz.
+            isStreaming = false
+            Handler(Looper.getMainLooper()).post {
+                eventSink?.success(mapOf("type" to "stream_stopped"))
+            }
+            println("[KOTLIN] streamVideoData temizlendi ve Flutter uyarıldı.")
+        }
     }
 
     fun notifyStreamRejected() {
