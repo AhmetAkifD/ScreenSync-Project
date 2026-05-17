@@ -7,7 +7,7 @@
         mc:Ignorable="d"
         Title="ScreenSync Kontrol Merkezi" Height="720" Width="1080"
         WindowStartupLocation="CenterScreen"
-        Background="#1E1E1E" MinWidth="1080" MinHeight="720">
+        Background="#111111" MinWidth="1080" MinHeight="800">
 
     <Window.Resources>
         <Style TargetType="Button">
@@ -25,32 +25,25 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#005A9E"/>
-                </Trigger>
-            </Style.Triggers>
         </Style>
     </Window.Resources>
 
-    <Grid>
+    <Grid Background="#222222">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="#252526" Padding="10,15" BorderBrush="#333" BorderThickness="0,0,0,1">
+        <Border Grid.Row="0" Background="#8B0000" Padding="10,15" BorderBrush="#FF4500" BorderThickness="0,0,0,2" Height="67" VerticalAlignment="Top">
             <Grid>
-                <TextBlock Text="Ekran Paylaşım Servisi" Foreground="#888" VerticalAlignment="Center" FontWeight="Bold" FontSize="16" Margin="10,0,0,0"/>
+                <TextBlock Text="Ekran Paylaşım Servisi" Foreground="White" VerticalAlignment="Center" FontWeight="Bold" FontSize="16" Margin="10,0,0,0"/>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button x:Name="BtnListenPort" Content="Portu Dinlemeye Başla" Click="BtnListenPort_Click" Height="35" Margin="0,0,15,0" Background="#2D2D2D"/>
-
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,15,0">
                         <Ellipse x:Name="StatusLight" Width="12" Height="12" Fill="#F44336" Margin="0,0,8,0"/>
                         <TextBlock x:Name="TxtLightStatus" Text="Veri Bekleniyor..." Foreground="White" VerticalAlignment="Center"/>
                     </StackPanel>
-
                     <Button x:Name="BtnShowStream" Content="Yayını Başlat" Click="BtnShowStream_Click" Height="35" IsEnabled="False" Background="#4CAF50"/>
                 </StackPanel>
             </Grid>
@@ -59,10 +52,10 @@
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="65"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="1015"/>
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Background="#1A1A1A" BorderBrush="#333" BorderThickness="0,0,1,0">
+            <Border Grid.Column="0" Background="#000080" BorderBrush="#0000FF" BorderThickness="0,0,2,0">
                 <StackPanel Margin="0,20,0,0">
                     <Button Height="45" Width="45" Margin="0,0,0,15" Background="Transparent" ToolTip="Ana Sayfa">
                         <TextBlock Text="&#xf015;" FontFamily="Segoe UI Symbol" Foreground="White" FontSize="20"/>
@@ -70,53 +63,45 @@
                 </StackPanel>
             </Border>
 
-            <Grid Grid.Column="1" Margin="20">
+            <Grid Grid.Column="1" Background="#4B0082" Width="980" Height="630" Margin="10">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="15"/>
-                    <RowDefinition Height="1.5*"/>
-                    <RowDefinition Height="15"/>
-                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="210"/>
+                    <RowDefinition Height="210"/>
+                    <RowDefinition Height="210"/>
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Text="★ Favori Cihazlar" Foreground="#FFD700" FontSize="18" FontWeight="SemiBold" Margin="5,0,0,10"/>
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <WrapPanel x:Name="PanelFavorites" Orientation="Horizontal"/>
+                <Grid Grid.Row="0" Background="#D2691E" Width="960" Height="190" Margin="10">
+                    <TextBlock Text="★ Favori Cihazlar" Foreground="White" FontSize="18" FontWeight="SemiBold" 
+                   Margin="10,5,0,0" Width="940" Height="25" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+
+                    <ScrollViewer Width="940" Height="150" Background="#F4A460" Padding="5" Margin="0,35,0,0" 
+                      VerticalScrollBarVisibility="Auto" HorizontalAlignment="Center" VerticalAlignment="Top">
+                        <WrapPanel x:Name="PanelFavorites" Background="#FFF8DC" Width="910" Orientation="Horizontal"/>
                     </ScrollViewer>
                 </Grid>
 
-                <Border Grid.Row="1" BorderBrush="#333" BorderThickness="0,1,0,0" Margin="0,7"/>
+                <Grid Grid.Row="1" Background="#006400" Width="960" Height="190" Margin="10">
+                    <TextBlock Text="Görünür Cihazlar" Foreground="White" FontSize="18" FontWeight="SemiBold" 
+                   Margin="10,5,0,0" Width="940" Height="25" HorizontalAlignment="Left" VerticalAlignment="Top"/>
 
-                <Grid Grid.Row="2">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Text="Görünür Cihazlar" Foreground="White" FontSize="18" FontWeight="SemiBold" Margin="5,0,0,10"/>
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <WrapPanel x:Name="PanelActiveDevices" Orientation="Horizontal"/>
+                    <ScrollViewer Width="940" Height="150" Background="#3CB371" Padding="5" Margin="0,35,0,0" 
+                      VerticalScrollBarVisibility="Auto" HorizontalAlignment="Center" VerticalAlignment="Top">
+                        <WrapPanel x:Name="PanelActiveDevices" Background="#90EE90" Width="910" Orientation="Horizontal"/>
                     </ScrollViewer>
                 </Grid>
 
-                <Border Grid.Row="3" BorderBrush="#333" BorderThickness="0,1,0,0" Margin="0,7"/>
+                <Grid Grid.Row="2" Background="#008B8B" Width="960" Height="190" Margin="10">
+                    <TextBlock Text="Geçmiş Bağlantılar" Foreground="White" FontSize="18" FontWeight="SemiBold" 
+                   Margin="10,5,0,0" Width="940" Height="25" HorizontalAlignment="Left" VerticalAlignment="Top"/>
 
-                <Grid Grid.Row="4">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Text="Geçmiş Bağlantılar" Foreground="#888" FontSize="18" FontWeight="SemiBold" Margin="5,0,0,10"/>
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <WrapPanel x:Name="PanelHistoryDevices" Orientation="Horizontal"/>
+                    <ScrollViewer Width="940" Height="150" Background="#4682B4" Padding="5" Margin="0,35,0,0" 
+                      VerticalScrollBarVisibility="Auto" HorizontalAlignment="Center" VerticalAlignment="Top">
+                        <WrapPanel x:Name="PanelHistoryDevices" Background="#E0FFFF" Width="910" Orientation="Horizontal"/>
                     </ScrollViewer>
                 </Grid>
 
             </Grid>
+
         </Grid>
     </Grid>
 </Window>
