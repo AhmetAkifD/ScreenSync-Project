@@ -266,9 +266,23 @@ class MainActivityTools(private val activity: Activity) {
             try {
                 mediaProjection = projectionManager.getMediaProjection(resultCode, data)
 
+                // --- YENİ EKLENEN DİNAMİK ÇÖZÜNÜRLÜK HESAPLAMASI ---
+                val displayMetrics = activity.resources.displayMetrics
+                val screenWidth = displayMetrics.widthPixels
+                val screenHeight = displayMetrics.heightPixels
+
+                // Orijinal ekran oranını (örn. 19.5:9) hesaplıyoruz
+                val ratio = screenHeight.toFloat() / screenWidth.toFloat()
+
+                // Genişliği 720p sabit tutup, yüksekliği telefonun oranına göre uzatıyoruz
                 val width = 720
-                val height = 1280
-                val dpi = activity.resources.displayMetrics.densityDpi
+                var height = (width * ratio).toInt()
+
+                // MediaCodec çözünürlük değerlerinin çift sayı olmasını zorunlu kılar, yoksa çöker
+                if (height % 2 != 0) height += 1
+                // --------------------------------------------------
+
+                val dpi = displayMetrics.densityDpi
                 val bitrate = 2000000
                 val fps = 30
 
@@ -320,7 +334,7 @@ class MainActivityTools(private val activity: Activity) {
                 )
 
                 isStreaming = true
-                println("--- ENCODER BAŞLADI, VİDEO AKIŞI HAZIR ---")
+                println("--- ENCODER BAŞLADI, VİDEO AKIŞI HAZIR (Çözünürlük: ${width}x${height}) ---")
 
                 Thread { streamVideoData() }.start()
 
