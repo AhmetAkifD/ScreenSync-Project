@@ -202,5 +202,64 @@ namespace ScreenSync.Desktop.Tools
             }
             return true;
         }
+        
+        public void PlayFadeInAnimation(UIElement element)
+        {
+            var fadeIn = new System.Windows.Media.Animation.DoubleAnimation
+            {
+                From = 0,
+                To = 1,
+                Duration = TimeSpan.FromMilliseconds(500)
+            };
+            element.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+        }
+        
+        public void MoveToHistory(DeviceBoxes card)
+        {
+            _mainWindow.Dispatcher.Invoke(() => {
+                // Aktif panelden çıkar
+                if (_mainWindow.PanelActiveDevices.Children.Contains(card))
+                {
+                    _mainWindow.PanelActiveDevices.Children.Remove(card);
+                }
+
+                // Eğer geçmiş panelinde zaten yoksa ekle
+                if (!_mainWindow.PanelHistoryDevices.Children.Contains(card))
+                {
+                    _mainWindow.PanelHistoryDevices.Children.Add(card);
+                }
+
+                // Geçmişte olduğu belli olsun diye biraz karartalım (Opacity)
+                card.Opacity = 0.6;
+                // Kartın içindeki butonları/etkileşimleri kapatabilirsin
+                card.IsEnabled = false; 
+        
+                LogService.Info($"{card.TxtDeviceName} geçmiş bağlantılara taşındı.");
+            });
+        }
+
+        public void MoveToActive(DeviceBoxes card)
+        {
+            _mainWindow.Dispatcher.Invoke(() => {
+                // Geçmişten çıkar
+                if (_mainWindow.PanelHistoryDevices.Children.Contains(card))
+                {
+                    _mainWindow.PanelHistoryDevices.Children.Remove(card);
+                }
+
+                // Aktife geri koy
+                if (!_mainWindow.PanelActiveDevices.Children.Contains(card))
+                {
+                    _mainWindow.PanelActiveDevices.Children.Add(card);
+                }
+
+                // Görünürlüğü ve etkileşimi geri aç
+                card.Opacity = 1.0;
+                card.IsEnabled = true;
+        
+                // Şık bir giriş animasyonu
+                PlayFadeInAnimation(card);
+            });
+        }
     }
 }

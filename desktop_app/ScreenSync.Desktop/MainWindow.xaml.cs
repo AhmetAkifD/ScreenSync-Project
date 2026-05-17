@@ -21,7 +21,6 @@ namespace ScreenSync.Desktop
             
             _tools = new MainWindowTools(this);
             _syncManager = new SyncManager();
-            _activeDeviceBox = _tools.CreateAndAttachDeviceBox("Galaxy A56", "127.0.0.1 (USB)");
             
             SubscribeToEvents();
             
@@ -32,7 +31,24 @@ namespace ScreenSync.Desktop
         private void SubscribeToEvents()
         {
             _syncManager.OnStatusChanged += (msg) => _tools.SetSystemStatus(msg, System.Windows.Media.Brushes.Orange);
-            _syncManager.OnDeviceReady += (deviceName) => _tools.SetDeviceReadyState(deviceName, _activeDeviceBox);
+            _syncManager.OnDeviceReady += (deviceName) => 
+            {
+                Dispatcher.Invoke(() => {
+                    // 1. Senaryo: Cihaz ilk defa bağlanıyor
+                    if (_activeDeviceBox == null)
+                    {
+                        _activeDeviceBox = _tools.CreateAndAttachDeviceBox(deviceName, "127.0.0.1 (USB)");
+                        _tools.PlayFadeInAnimation(_activeDeviceBox);
+                    }
+                    // 2. Senaryo: Cihaz daha önce bağlandı ve geçmişe atıldı (Geri dönüyor)
+                    else
+                    {
+                        _tools.MoveToActive(_activeDeviceBox);
+                    }
+        
+                    _tools.SetDeviceReadyState(deviceName, _activeDeviceBox);
+                });
+            };
             _syncManager.OnStreamRequested += () => _tools.HandleIncomingStreamRequest(_syncManager, _activeDeviceBox);
             _syncManager.OnImageDecoded += (img) => 
             {
@@ -40,9 +56,16 @@ namespace ScreenSync.Desktop
             };
             _syncManager.OnStreamStopped += () => 
             {
-                _tools.SetDisconnectedState(_activeDeviceBox);
-                IsUserWantsToSee = false;
-                LogService.Info("Yayın durduruldu ve arayüz sıfırlandı.");
+                Dispatcher.Invoke(() => {
+                    if (_activeDeviceBox != null)
+                    {
+                        // Yayın koptuğunda veya durduğunda kartı geçmişe gönder
+                        _tools.MoveToHistory(_activeDeviceBox);
+                    }
+        
+                    _tools.SetDisconnectedState(_activeDeviceBox);
+                    IsUserWantsToSee = false;
+                });
             };
         }
 
@@ -54,7 +77,7 @@ namespace ScreenSync.Desktop
 
                 BtnListenPort.IsEnabled = false;
                 BtnListenPort.Content = "Tünel Açık";
-                _activeDeviceBox.SetConnection(DeviceBoxes.ConnectionType.Usb);
+                _activeDeviceBox?.SetConnection(DeviceBoxes.ConnectionType.Usb);
                 
                 LogService.Info($"Komut sunucusu {VIDEO_PORT} portunda dinlenmeye başlandı.");
             }
@@ -63,7 +86,10 @@ namespace ScreenSync.Desktop
         private void BtnShowStream_Click(object sender, RoutedEventArgs e)
         {
             IsUserWantsToSee = true;
-            _tools.SetStreamActiveState(_activeDeviceBox);
+            if (_activeDeviceBox != null)
+            {
+                _tools.SetStreamActiveState(_activeDeviceBox);
+            }
             LogService.Info("Kullanıcı akışı izlemeye başladı.");
         }
     }
