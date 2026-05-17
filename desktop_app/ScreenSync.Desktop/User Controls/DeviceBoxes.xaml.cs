@@ -19,6 +19,8 @@ namespace ScreenSync.Desktop.User_Controls
     {
         private bool _isFavorite = false;
         public event Action<string> OnStartClicked; // Cihaz IP'sini dışarı fırlatır
+        public event Action<DeviceBoxes, bool> OnFavoriteToggled; // Kendini ve yeni durumunu dışarı fırlatır
+        public string DeviceName => TxtDeviceName.Text; // Dışarıdan cihaz ismini okuyabilmek için
 
         public enum DeviceStatus { Disconnected, Ready, Streaming }
         public enum ConnectionType { Usb, Wifi }
@@ -41,7 +43,7 @@ namespace ScreenSync.Desktop.User_Controls
         private void BtnFavorite_Click(object sender, RoutedEventArgs e)
         {
             SetFavorite(!_isFavorite); // State'i tersine çevir ve rengi güncelle
-            // İleride ana sayfaya "bu cihaz favori yapıldı" haberi uçurmak için event Action<string, bool> fırlatılabilir.
+            OnFavoriteToggled?.Invoke(this, _isFavorite);
         }
 
         // DeviceBoxes.xaml.cs içinde

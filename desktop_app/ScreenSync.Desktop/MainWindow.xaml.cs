@@ -38,6 +38,10 @@ namespace ScreenSync.Desktop
                     if (_activeDeviceBox == null)
                     {
                         _activeDeviceBox = _tools.CreateAndAttachDeviceBox(deviceName, "127.0.0.1 (USB)");
+                        _activeDeviceBox.OnFavoriteToggled += (card, isFavorite) =>
+                        {
+                            _tools.ToggleFavorite(card, isFavorite);
+                        };
                         _tools.PlayFadeInAnimation(_activeDeviceBox);
                     }
                     // 2. Senaryo: Cihaz daha önce bağlandı ve geçmişe atıldı (Geri dönüyor)

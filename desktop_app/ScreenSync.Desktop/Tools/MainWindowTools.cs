@@ -261,5 +261,34 @@ namespace ScreenSync.Desktop.Tools
                 PlayFadeInAnimation(card);
             });
         }
+
+        public void ToggleFavorite(DeviceBoxes card, bool isFavorite)
+        {
+            _mainWindow.Dispatcher.Invoke(() => {
+                // 1. Önce kartı her yerden acımasızca söküyoruz (Nerede olduğunu umursamadan)
+                if (_mainWindow.PanelActiveDevices.Children.Contains(card))
+                    _mainWindow.PanelActiveDevices.Children.Remove(card);
+
+                if (_mainWindow.PanelHistoryDevices.Children.Contains(card))
+                    _mainWindow.PanelHistoryDevices.Children.Remove(card);
+
+                if (_mainWindow.PanelFavorites.Children.Contains(card))
+                    _mainWindow.PanelFavorites.Children.Remove(card);
+
+                // 2. Yeni evine yerleştiriyoruz
+                if (isFavorite)
+                {
+                    _mainWindow.PanelFavorites.Children.Add(card);
+                    card.Opacity = 1.0; // Favorilerde her zaman parlak dursun
+                    LogService.Info($"{card.DeviceName} favorilere eklendi.");
+                }
+                else
+                {
+                    _mainWindow.PanelHistoryDevices.Children.Add(card);
+                    card.Opacity = 0.6; // Senin isteğine göre şimdilik geçmişe gidiyor (soluk)
+                    LogService.Info($"{card.DeviceName} favorilerden çıkarıldı, geçmişe gönderildi.");
+                }
+            });
+        }
     }
 }
