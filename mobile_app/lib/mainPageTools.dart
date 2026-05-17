@@ -147,26 +147,35 @@ class MainPageTools {
 
   // --- 4. USB MODU ---
   Future<void> enableUsbMode(BuildContext context) async {
-    isConnected = true;
-    targetIp = "127.0.0.1"; // ADB Reverse IP'si
-    isDiscovering = false;
-    foundDevices.clear();
-    statusText = "USB Modu Aktif";
-    statusColor = Colors.teal;
-    updateUI();
-
     try {
-      // YENİ EKLENEN KISIM: Butona basar basmaz C# ile tüneli aç!
+      // YENİ KONTROL: Kotlin'e USB takılı mı diye sor
+      final bool isUsbPlugged = await platform.invokeMethod('isUsbConnected');
+
+      if (!isUsbPlugged) {
+        LogService.error("USB kablosu bağlı değil, işlem reddedildi.");
+        _showSnackBar(context, 'Hata: Lütfen telefonu PC\'ye kabloyla bağlayın!');
+        return; // İşlemi anında durdur, aşağıdaki kodları (arayüz değişimini) çalıştırma
+      }
+
+      // Kablo takılıysa her zamanki gibi devam et...
+      isConnected = true;
+      targetIp = "127.0.0.1"; // ADB Reverse IP'si
+      isDiscovering = false;
+      foundDevices.clear();
+      statusText = "USB Modu Aktif (Cihaz Hazırlanıyor...)";
+      statusColor = Colors.teal;
+      updateUI();
+
       await platform.invokeMethod('connectCommand', {'ip': targetIp});
       LogService.info("USB Modu: PC ile komut kanalı (50000) el sıkışması tamamlandı.");
 
-      // Başarılı olursa arayüzdeki yazıyı güncelle
       statusText = "PC İle Eşleşildi (USB)";
       updateUI();
+      _showSnackBar(context, 'USB Kablosu ile yayına hazır!');
+
     } catch (e) {
       LogService.error("Komut kanalına bağlanılamadı. C# tüneli kapalı olabilir: $e");
     }
-    _showSnackBar(context, 'USB Kablosu ile yayına hazır!');
   }
 
   // --- 5. YAYIN KONTROLÜ ---

@@ -51,6 +51,12 @@ class MainActivity: FlutterActivity() {
         // 2. Flutter'dan Gelen İstekleri Karşılama Kanalı (MethodChannel)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
+                "isUsbConnected" -> {
+                    val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                    val chargePlug = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, -1) ?: -1
+                    val usbCharge = chargePlug == android.os.BatteryManager.BATTERY_PLUGGED_USB
+                    result.success(usbCharge)
+                }
                 "connectCommand" -> tools.connectCommandChannel(call.argument<String>("ip") ?: "127.0.0.1", result)
                 "startCapture" -> tools.startCapture(result)
                 "stopCapture" -> tools.stopCapture(result)
