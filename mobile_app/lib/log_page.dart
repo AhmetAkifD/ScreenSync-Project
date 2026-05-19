@@ -19,7 +19,9 @@ class LogPage extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                 child: Text(
                   logList[index],
-                  style: TextStyle(color: Colors.greenAccent, fontFamily: 'monospace'),
+                  style: TextStyle(color: LogService.getLogColor(logList[index]),
+                    fontWeight: FontWeight.w500,
+                    fontFamily: 'monospace',),
                 ),
               );
             },

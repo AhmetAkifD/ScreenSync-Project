@@ -30,7 +30,12 @@ class MainPageTools {
       final Map<dynamic, dynamic> data = event;
       final String type = data['type'];
 
-      if (type == 'device_found') {
+      // YENİ EKLENEN KISIM: Kotlin'den gelen logları anında yakalıyoruz
+      if (type == 'log') {
+        LogService.info(data['message'] ?? 'Boş log mesajı');
+        return; // Log geldiğinde arayüzü boşuna güncellemeye (updateUI) gerek yok, buradan çık.
+      }
+      else if (type == 'device_found') {
         bool exists = foundDevices.any((d) => d['deviceAddress'] == data['deviceAddress']);
         if (!exists) {
           foundDevices.add({

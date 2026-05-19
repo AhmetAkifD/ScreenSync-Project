@@ -14,18 +14,19 @@ namespace ScreenSync.Desktop
         }
 
         // Ana sayfadan (veya SyncManager'dan) gelen görüntüyü buraya basacaðýz
-        public void UpdateFrame(BitmapSource frame)
+        public void UpdateFrame(WriteableBitmap image)
         {
-            Dispatcher.Invoke(() =>
-            {
-                ScreenViewer.Source = frame;
+            Dispatcher.Invoke(() => {
+                // 1. Resmi ekrana bas
+                ScreenViewer.Source = image;
 
-                // Çözünürlük deðiþti mi kontrolü (Ýlk açýlýþ veya telefonun yan çevrilmesi)
-                if (_lastVideoWidth != frame.PixelWidth || _lastVideoHeight != frame.PixelHeight)
+                // 2. Çözünürlük deðiþimi kontrolü (Sadece ilk açýlýþta ve telefon döndüðünde çalýþýr)
+                if (_lastVideoWidth != image.PixelWidth || _lastVideoHeight != image.PixelHeight)
                 {
-                    _lastVideoWidth = frame.PixelWidth;
-                    _lastVideoHeight = frame.PixelHeight;
+                    _lastVideoWidth = image.PixelWidth;
+                    _lastVideoHeight = image.PixelHeight;
 
+                    // 3. Ýþte þimdi o meþhur fonksiyonu çalýþtýrýyoruz!
                     AdjustWindowSize(_lastVideoWidth, _lastVideoHeight);
                 }
             });
@@ -33,35 +34,30 @@ namespace ScreenSync.Desktop
 
         private void AdjustWindowSize(double videoWidth, double videoHeight)
         {
-            // Genel boyutu küçülttük: Ekranýn max %60'ýný kullanacak þekilde güvenli sýnýr çekiyoruz
-            double maxAllowedHeight = SystemParameters.WorkArea.Height * 0.60;
-            double maxAllowedWidth = SystemParameters.WorkArea.Width * 0.60;
+            // %50 küçültmek için * 0.5 yapýyoruz (Senin kodunda 1 kalmýþtý)
+            double maxAllowedHeight = SystemParameters.WorkArea.Height * 0.5;
+            double maxAllowedWidth = SystemParameters.WorkArea.Width * 0.5;
 
             double ratio = videoWidth / videoHeight;
-
             double targetWidth;
             double targetHeight;
 
-            // 1. DURUM: DÝKEY MOD (Telefon dik tutulurken)
-            if (videoHeight > videoWidth)
+            if (videoHeight > videoWidth) // DÝKEY MOD
             {
                 targetHeight = maxAllowedHeight;
                 targetWidth = targetHeight * ratio;
 
-                // Eðer geniþlik sýnýrý aþýlýrsa orantýyý koruyarak geniþliðe göre küçült
                 if (targetWidth > maxAllowedWidth)
                 {
                     targetWidth = maxAllowedWidth;
                     targetHeight = targetWidth / ratio;
                 }
             }
-            // 2. DURUM: YATAY MOD (Telefon yan çevrildiðinde veya oyun/video açýldýðýnda)
-            else
+            else // YATAY MOD
             {
                 targetWidth = maxAllowedWidth;
                 targetHeight = targetWidth / ratio;
 
-                // Eðer yükseklik sýnýrý aþýlýrsa orantýyý koruyarak yüksekliðe göre küçült
                 if (targetHeight > maxAllowedHeight)
                 {
                     targetHeight = maxAllowedHeight;
@@ -69,7 +65,6 @@ namespace ScreenSync.Desktop
                 }
             }
 
-            // Hesaplanan milimetrik boyutlarý doðrudan resme basýyoruz
             ScreenViewer.Width = targetWidth;
             ScreenViewer.Height = targetHeight;
         }

@@ -20,6 +20,7 @@ import android.net.wifi.p2p.WifiP2pManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.view.Display
 import androidx.annotation.RequiresPermission
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
@@ -40,9 +41,15 @@ class MainActivityTools(private val activity: Activity) {
     lateinit var mChannel: WifiP2pManager.Channel
     lateinit var projectionManager: MediaProjectionManager
 
+    // --- EKRAN DÖNDÜRME DEĞİŞKENLERİ ---
+    private var displayManager: DisplayManager? = null
+    private var lastRotation: Int = -1
+
+    @Volatile private var isEncoderRebuilding = false
+    @Volatile var encoder: MediaCodec? = null // Thread'ler arası anında görünmesi için Volatile yapıldı
+
     // --- VİDEO VE SOKET DEĞİŞKENLERİ ---
     var mediaProjection: MediaProjection? = null
-    var encoder: MediaCodec? = null
     var virtualDisplay: VirtualDisplay? = null
     var isStreaming = false
     var targetIpAddress = "192.168.137.1"
@@ -51,45 +58,59 @@ class MainActivityTools(private val activity: Activity) {
     var commandOut: PrintWriter? = null
     var commandIn: BufferedReader? = null
 
-    // Sınıf başlatıldığında Android servislerini ayağa kaldırır
-    fun initialize() {
-        manager = activity.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
-        mChannel = manager.initialize(activity, activity.mainLooper, null)
-        projectionManager = activity.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-    }
-
-    fun stopCaptureInternal() {
-        if (!isStreaming) return
-        isStreaming = false
-        activity.stopService(Intent(activity, ScreenCaptureService::class.java))
-        Handler(Looper.getMainLooper()).post {
-            eventSink?.success(mapOf("type" to "stream_stopped"))
-        }
-        println("[KOTLIN] Yayın sistem tarafından (Arka plan/Ekran Kilidi) durduruldu.")
-    }
-
-    val screenOffReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == Intent.ACTION_SCREEN_OFF) {
-                if (isStreaming) {
-                    println("[KOTLIN] Ekran kapandı! Çökmeyi önlemek için yayın kesiliyor.")
-                    stopCaptureInternal()
+    // Ekranın döndüğünü anında yakalayan ajanımız
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) {}
+        override fun onDisplayRemoved(displayId: Int) {}
+        override fun onDisplayChanged(displayId: Int) {
+            val display = displayManager?.getDisplay(displayId)
+            if (display != null && displayId == Display.DEFAULT_DISPLAY) {
+                val newRotation = display.rotation
+                if (newRotation != lastRotation) {
+                    if (lastRotation != -1 && isStreaming) {
+                        sendLogToFlutter("[KOTLIN-ROTATION] Ekran dönmesi algılandı! TCP koparılmadan çözünürlük değiştiriliyor...")
+                        rebuildEncoder()
+                    }
+                    lastRotation = newRotation
                 }
             }
         }
     }
 
-    // --- 1. AĞ VE CİHAZ KEŞFİ (WIFI P2P) METOTLARI ---
+    fun initialize() {
+        manager = activity.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
+        mChannel = manager.initialize(activity, activity.mainLooper, null)
+        projectionManager = activity.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        displayManager = activity.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+    }
 
+    fun stopCaptureInternal() {
+        if (!isStreaming) return
+        isStreaming = false
+        displayManager?.unregisterDisplayListener(displayListener)
+        activity.stopService(Intent(activity, ScreenCaptureService::class.java))
+        Handler(Looper.getMainLooper()).post {
+            eventSink?.success(mapOf("type" to "stream_stopped"))
+        }
+        sendLogToFlutter("[KOTLIN-SİSTEM] Yayın sistem tarafından durduruldu.")
+    }
+
+    val screenOffReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SCREEN_OFF && isStreaming) {
+                sendLogToFlutter("[KOTLIN-SİSTEM] Ekran kapandı! Çökmeyi önlemek için yayın kesiliyor.")
+                stopCaptureInternal()
+            }
+        }
+    }
+
+    // --- 1. AĞ VE CİHAZ KEŞFİ (WIFI P2P) METOTLARI ---
     private val peerListListener = WifiP2pManager.PeerListListener { peerList ->
         val refreshedPeers = peerList.deviceList
         if (refreshedPeers != peers) {
             peers.clear()
             peers.addAll(refreshedPeers)
-
-            println("--- BULUNAN CİHAZLAR ---")
             for (device in peers) {
-                println("Cihaz Adı: ${device.deviceName} | MAC Adresi: ${device.deviceAddress}")
                 Handler(Looper.getMainLooper()).post {
                     eventSink?.success(mapOf(
                         "type" to "device_found",
@@ -106,17 +127,13 @@ class MainActivityTools(private val activity: Activity) {
             @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.NEARBY_WIFI_DEVICES])
             override fun onReceive(context: Context, intent: Intent) {
                 val action: String? = intent.action
-
                 if (WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION == action) {
                     manager.requestPeers(mChannel, peerListListener)
-                }
-                else if (WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION == action) {
+                } else if (WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION == action) {
                     val networkInfo = intent.getParcelableExtra<NetworkInfo>(WifiP2pManager.EXTRA_NETWORK_INFO)
                     if (networkInfo != null && networkInfo.isConnected) {
-                        println("--- FİZİKSEL BAĞLANTI KURULDU ---")
                         Handler(Looper.getMainLooper()).post { eventSink?.success(mapOf("type" to "connected")) }
                     } else {
-                        println("--- BAĞLANTI KOPTU / BEKLENİYOR ---")
                         Handler(Looper.getMainLooper()).post { eventSink?.success(mapOf("type" to "disconnected")) }
                     }
                 }
@@ -142,35 +159,18 @@ class MainActivityTools(private val activity: Activity) {
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.NEARBY_WIFI_DEVICES])
     fun connectToPC(macAddress: String?, result: MethodChannel.Result) {
-        if (macAddress == null) {
-            result.error("HATA", "MAC adresi boş olamaz!", null)
-            return
-        }
-
-        val device = peers.find { it.deviceAddress == macAddress }
-        if (device == null) {
-            result.error("HATA", "Seçilen cihaz bulunamadı!", null)
-            return
-        }
-
-        val config = WifiP2pConfig().apply {
-            deviceAddress = device.deviceAddress
-            wps.setup = WpsInfo.PBC
-        }
+        if (macAddress == null) return
+        val device = peers.find { it.deviceAddress == macAddress } ?: return
+        val config = WifiP2pConfig().apply { deviceAddress = device.deviceAddress; wps.setup = WpsInfo.PBC }
 
         manager.stopPeerDiscovery(mChannel, object : WifiP2pManager.ActionListener {
-            override fun onSuccess() { println("--- Bağlanma öncesi arama durduruldu ---") }
-            override fun onFailure(p0: Int) { }
+            override fun onSuccess() {} override fun onFailure(p0: Int) {}
         })
 
         Handler(Looper.getMainLooper()).post {
             manager.cancelConnect(mChannel, object : WifiP2pManager.ActionListener {
-                override fun onSuccess() {
-                    Handler(Looper.getMainLooper()).postDelayed({ performActualConnection(config, device.deviceName, result) }, 300)
-                }
-                override fun onFailure(reasonCode: Int) {
-                    Handler(Looper.getMainLooper()).postDelayed({ performActualConnection(config, device.deviceName, result) }, 300)
-                }
+                override fun onSuccess() { Handler(Looper.getMainLooper()).postDelayed({ performActualConnection(config, device.deviceName, result) }, 300) }
+                override fun onFailure(reasonCode: Int) { Handler(Looper.getMainLooper()).postDelayed({ performActualConnection(config, device.deviceName, result) }, 300) }
             })
         }
     }
@@ -184,61 +184,43 @@ class MainActivityTools(private val activity: Activity) {
     }
 
     // --- 2. VİDEO VE SOKET KONTROL METOTLARI ---
-
     fun connectCommandChannel(ip: String, result: MethodChannel.Result) {
         targetIpAddress = ip
-        println("[KOTLIN] Erken bağlantı kuruluyor. Hedef: $targetIpAddress")
-
         Thread {
             try {
-                // Varsa eski zombileri temizle
-                try {
-                    commandIn?.close()
-                    commandOut?.close()
-                    commandSocket?.close()
-                } catch (e: Exception) { }
+                try { commandIn?.close(); commandOut?.close(); commandSocket?.close() } catch (e: Exception) { }
 
                 commandSocket = java.net.Socket(targetIpAddress, 50000)
                 commandOut = java.io.PrintWriter(commandSocket!!.getOutputStream(), true)
                 commandIn = java.io.BufferedReader(java.io.InputStreamReader(commandSocket!!.getInputStream()))
 
-                // 1. Sadece "Ben geldim" de, yayın isteme!
                 commandOut?.println("HELO|${Build.MODEL}")
-                println("[KOTLIN] PC'ye HELO gönderildi. Arka plan dinlemesi başlıyor...")
-
-                // 2. Artık hep uyanık kal ve PC'den gelecek komutları dinle
                 while (true) {
                     val rawResponse = commandIn?.readLine()
-
                     if (rawResponse == null) {
-                        println("[KOTLIN] PC bağlantıyı kesti. Tünel yıkıldı.")
                         Handler(Looper.getMainLooper()).post { eventSink?.success(mapOf("type" to "disconnected")) }
                         break
                     }
 
-                    val response = rawResponse.trim()
-
-                    if (response == "APPROVE_STREAM") {
-                        Handler(Looper.getMainLooper()).post {
-                            activity.startActivityForResult(projectionManager.createScreenCaptureIntent(), REQUEST_CODE_CAPTURE)
+                    when (rawResponse.trim()) {
+                        "APPROVE_STREAM" -> {
+                            Handler(Looper.getMainLooper()).post {
+                                activity.startActivityForResult(projectionManager.createScreenCaptureIntent(), REQUEST_CODE_CAPTURE)
+                            }
                         }
-                    }
-                    else if (response == "REJECT_STREAM") {
-                        notifyStreamRejected()
-                    }
-                    else if (response == "STOP_STREAM") {
-                        isStreaming = false
-                        Handler(Looper.getMainLooper()).post {
-                            mediaProjection?.stop()
-                            eventSink?.success(mapOf("type" to "stream_stopped"))
+                        "REJECT_STREAM" -> notifyStreamRejected()
+                        "STOP_STREAM" -> {
+                            sendLogToFlutter("[KOTLIN-KOMUT] Masaüstünden STOP_STREAM sinyali alındı.")
+                            isStreaming = false
+                            Handler(Looper.getMainLooper()).post {
+                                mediaProjection?.stop()
+                                eventSink?.success(mapOf("type" to "stream_stopped"))
+                            }
                         }
                     }
                 }
-            } catch (e: Exception) {
-                println("[KOTLIN - HATA] Komut Kanalı patladı: ${e.message}")
-            }
+            } catch (e: Exception) {}
         }.start()
-
         result.success("Komut kanalına bağlanıldı")
     }
 
@@ -247,12 +229,7 @@ class MainActivityTools(private val activity: Activity) {
             result.error("HATA", "Önce bağlantı kurulmalı!", null)
             return
         }
-
-        println("[KOTLIN] PC'ye yayın isteği (REQ_STREAM) gönderiliyor...")
-        Thread {
-            commandOut?.println("REQ_STREAM")
-        }.start()
-
+        Thread { commandOut?.println("REQ_STREAM") }.start()
         result.success("İstek işleniyor...")
     }
 
@@ -266,56 +243,37 @@ class MainActivityTools(private val activity: Activity) {
             try {
                 mediaProjection = projectionManager.getMediaProjection(resultCode, data)
 
-                // --- YENİ EKLENEN DİNAMİK ÇÖZÜNÜRLÜK HESAPLAMASI ---
+                lastRotation = displayManager?.getDisplay(Display.DEFAULT_DISPLAY)?.rotation ?: 0
+                displayManager?.registerDisplayListener(displayListener, null)
+
                 val displayMetrics = activity.resources.displayMetrics
                 val screenWidth = displayMetrics.widthPixels
                 val screenHeight = displayMetrics.heightPixels
-
-                // Orijinal ekran oranını (örn. 19.5:9) hesaplıyoruz
                 val ratio = screenHeight.toFloat() / screenWidth.toFloat()
 
-                // Genişliği 720p sabit tutup, yüksekliği telefonun oranına göre uzatıyoruz
-                val width = 720
+                var width = 720
                 var height = (width * ratio).toInt()
-
-                // MediaCodec çözünürlük değerlerinin çift sayı olmasını zorunlu kılar, yoksa çöker
                 if (height % 2 != 0) height += 1
-                // --------------------------------------------------
 
                 val dpi = displayMetrics.densityDpi
-                val bitrate = 2000000
-                val fps = 30
 
                 mediaProjection?.registerCallback(object : MediaProjection.Callback() {
                     override fun onStop() {
                         super.onStop()
                         isStreaming = false
+                        displayManager?.unregisterDisplayListener(displayListener)
                         activity.stopService(Intent(activity, ScreenCaptureService::class.java))
-                        println("--- EKRAN PAYLAŞIMI DURDURULDU ---")
                         try {
-                            encoder?.stop()
-                            encoder?.release()
-                            virtualDisplay?.release()
-
-                            // EKSİK OLAN BİLDİRİM KÖPRÜSÜ EKLENDİ
-                            Thread {
-                                try {
-                                    commandOut?.println("STREAM_STOPPED")
-                                    commandSocket?.close()
-                                    commandSocket = null
-                                } catch (e: Exception) { }
-                            }.start()
-
-                        } catch (e: Exception) {
-                            println("Kaynak temizleme hatası: ${e.message}")
-                        }
+                            encoder?.stop(); encoder?.release(); virtualDisplay?.release()
+                            Thread { try { commandOut?.println("STREAM_STOPPED"); commandSocket?.close(); commandSocket = null } catch (e: Exception) { } }.start()
+                        } catch (e: Exception) { }
                     }
                 }, null)
 
                 val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height)
                 format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-                format.setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
-                format.setInteger(MediaFormat.KEY_FRAME_RATE, fps)
+                format.setInteger(MediaFormat.KEY_BIT_RATE, 2000000)
+                format.setInteger(MediaFormat.KEY_FRAME_RATE, 30)
                 format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) format.setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0)
@@ -323,7 +281,6 @@ class MainActivityTools(private val activity: Activity) {
 
                 encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
                 encoder?.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-
                 val inputSurface = encoder?.createInputSurface()
                 encoder?.start()
 
@@ -334,16 +291,77 @@ class MainActivityTools(private val activity: Activity) {
                 )
 
                 isStreaming = true
-                println("--- ENCODER BAŞLADI, VİDEO AKIŞI HAZIR (Çözünürlük: ${width}x${height}) ---")
+                sendLogToFlutter("[KOTLIN-VİDEO] Yayın başlatıldı. İlk Çözünürlük: ${width}x${height}")
 
                 Thread { streamVideoData() }.start()
-
                 Handler(Looper.getMainLooper()).post { eventSink?.success(mapOf("type" to "stream_started")) }
 
             } catch (e: Exception) {
-                println("MediaProjection Hatası: ${e.message}")
+                sendLogToFlutter("[KOTLIN-HATA] startVideoStreaming patladı: ${e.message}")
             }
         }, 500)
+    }
+
+    // --- SİHİRLİ METOT: VIRTUAL DISPLAY SİLİNMEZ, YÖNLENDİRİLİR ---
+    private fun rebuildEncoder() {
+        if (!isStreaming) return
+        sendLogToFlutter("[KOTLIN-ROTATION] Yeniden yapılandırma başladı. TCP donduruluyor...")
+        isEncoderRebuilding = true
+
+        try {
+            encoder?.stop()
+            encoder?.release()
+            sendLogToFlutter("[KOTLIN-ROTATION] Eski encoder başarıyla temizlendi.")
+        } catch (e: Exception) {
+            sendLogToFlutter("[KOTLIN-ROTATION-HATA] Eski encoder temizlenirken hata: ${e.message}")
+        }
+
+        try {
+            val displayMetrics = activity.resources.displayMetrics
+            val screenWidth = displayMetrics.widthPixels
+            val screenHeight = displayMetrics.heightPixels
+
+            var width = 720
+            var height = 1280
+
+            if (screenWidth > screenHeight) {
+                height = 720
+                width = (height * (screenWidth.toFloat() / screenHeight.toFloat())).toInt()
+                if (width % 2 != 0) width += 1
+            } else {
+                width = 720
+                height = (width * (screenHeight.toFloat() / screenWidth.toFloat())).toInt()
+                if (height % 2 != 0) height += 1
+            }
+            sendLogToFlutter("[KOTLIN-ROTATION] Yeni boyutlar hesaplandı: ${width}x${height}")
+
+            val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height)
+            format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+            format.setInteger(MediaFormat.KEY_BIT_RATE, 2000000)
+            format.setInteger(MediaFormat.KEY_FRAME_RATE, 30)
+            format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) format.setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
+
+            val newEncoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+            newEncoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            val inputSurface = newEncoder.createInputSurface()
+            newEncoder.start()
+
+            // İŞTE BÜTÜN SIR BURADA: Silmiyoruz, sadece boyutunu ve hedefini güncelliyoruz!
+            virtualDisplay?.resize(width, height, displayMetrics.densityDpi)
+            virtualDisplay?.surface = inputSurface
+
+            encoder = newEncoder
+            sendLogToFlutter("[KOTLIN-ROTATION] Yeni encoder bağlandı, VirtualDisplay yönlendirildi!")
+
+        } catch (e: Exception) {
+            sendLogToFlutter("[KOTLIN-ROTATION-CRITICAL] Kodlayıcı yenileme hatası: ${e.message}")
+        } finally {
+            isEncoderRebuilding = false
+            sendLogToFlutter("[KOTLIN-ROTATION] TCP kilidi açıldı, veri akışı devam ediyor.")
+        }
     }
 
     private fun streamVideoData() {
@@ -352,48 +370,74 @@ class MainActivityTools(private val activity: Activity) {
             val outputStream = tcpSocket.getOutputStream()
             val bufferInfo = MediaCodec.BufferInfo()
 
+            sendLogToFlutter("[KOTLIN-TCP] 50001 portuna bağlanıldı, paket gönderimi başlıyor.")
+
             while (isStreaming) {
-                val outputBufferIndex = encoder?.dequeueOutputBuffer(bufferInfo, 10000) ?: -1
-                if (outputBufferIndex >= 0) {
-                    val outputBuffer = encoder?.getOutputBuffer(outputBufferIndex)
-                    if (outputBuffer != null && bufferInfo.size > 0) {
-                        val chunk = ByteArray(bufferInfo.size)
-                        outputBuffer.apply {
-                            position(bufferInfo.offset)
-                            limit(bufferInfo.offset + bufferInfo.size)
-                            get(chunk)
-                        }
+                if (isEncoderRebuilding || encoder == null) {
+                    Thread.sleep(10)
+                    continue
+                }
 
-                        val packetData = ByteBuffer.allocate(4 + chunk.size)
-                            .putInt(chunk.size).put(chunk).array()
+                try {
+                    val currentEncoder = encoder
+                    if (currentEncoder == null) continue
 
-                        try {
+                    val outputBufferIndex = currentEncoder.dequeueOutputBuffer(bufferInfo, 10000)
+
+                    if (outputBufferIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                        sendLogToFlutter("[KOTLIN-TCP] Yeni SPS/PPS formatı tespit edildi.")
+                        continue
+                    }
+
+                    if (outputBufferIndex >= 0) {
+                        val outputBuffer = currentEncoder.getOutputBuffer(outputBufferIndex)
+                        if (outputBuffer != null && bufferInfo.size > 0) {
+                            val chunk = ByteArray(bufferInfo.size)
+                            outputBuffer.apply {
+                                position(bufferInfo.offset)
+                                limit(bufferInfo.offset + bufferInfo.size)
+                                get(chunk)
+                            }
+
+                            val packetData = ByteBuffer.allocate(4 + chunk.size)
+                                .putInt(chunk.size).put(chunk).array()
+
                             outputStream.write(packetData)
                             outputStream.flush()
-                        } catch (e: Exception) {
-                            println("TCP Gönderim Hatası: ${e.message}")
-                            break
                         }
+                        currentEncoder.releaseOutputBuffer(outputBufferIndex, false)
                     }
-                    encoder?.releaseOutputBuffer(outputBufferIndex, false)
+                } catch (e: IllegalStateException) {
+                    Thread.sleep(10)
+                } catch (e: Exception) {
+                    sendLogToFlutter("[KOTLIN-TCP-CRITICAL] TCP Gönderim Hatası (Döngü kırılıyor): ${e.message}")
+                    break
                 }
             }
             tcpSocket.close()
+            sendLogToFlutter("[KOTLIN-TCP] Döngü bitti, soket kapatıldı.")
         } catch (e: Exception) {
-            println("Yayın Döngüsü Hatası: ${e.message}")
+            sendLogToFlutter("[KOTLIN-TCP-CRITICAL] Yayın Döngüsü Hatası: ${e.message}")
         }
         finally {
-            // İŞTE KRİTİK NOKTA: Döngü bittiğinde (hata veya manuel durdurma)
-            // Flutter'a yayının bittiğini garanti ediyoruz.
             isStreaming = false
             Handler(Looper.getMainLooper()).post {
                 eventSink?.success(mapOf("type" to "stream_stopped"))
             }
-            println("[KOTLIN] streamVideoData temizlendi ve Flutter uyarıldı.")
         }
     }
 
     fun notifyStreamRejected() {
         Handler(Looper.getMainLooper()).post { eventSink?.success(mapOf("type" to "stream_rejected")) }
+    }
+
+    fun sendLogToFlutter(message: String) {
+        // Hem Android'in kendi loglarında (Logcat) görelim
+        println(message)
+
+        // Hem de Flutter tarafına gönderelim
+        Handler(Looper.getMainLooper()).post {
+            eventSink?.success(mapOf("type" to "log", "message" to message))
+        }
     }
 }

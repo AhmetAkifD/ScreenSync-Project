@@ -26,6 +26,9 @@ namespace ScreenSync.Desktop
             
             this.Loaded += (s, e) => _tools.OpenLogConsole();
             this.Closed += (s, e) => _syncManager.StopAll();
+
+            NetworkLogger.OnLogInfo += (msg) => LogService.Info(msg);
+            NetworkLogger.OnLogError += (msg) => LogService.Error(msg);
         }
 
         private void SubscribeToEvents()

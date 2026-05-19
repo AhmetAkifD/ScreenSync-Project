@@ -139,7 +139,10 @@ namespace ScreenSync.Desktop.Tools
 
                     SetSystemStatus("Ekran Aktarılıyor...", Brushes.Cyan);
                 }
-                _screenWindow.ScreenViewer.Source = image;
+
+                // ESKİ HALİ: _screenWindow.ScreenViewer.Source = image;
+                // YENİ HALİ: Artık akıllı karşılama metodumuzu kullanıyoruz!
+                _screenWindow.UpdateFrame(image);
             });
         }
 
