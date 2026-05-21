@@ -23,6 +23,7 @@ namespace ScreenSync.Desktop.User_Controls
         public string DeviceName => TxtDeviceName.Text; // Dışarıdan cihaz ismini okuyabilmek için
 
         public enum DeviceStatus { Disconnected, Ready, Streaming }
+        public DeviceStatus CurrentStatus { get; private set; } = DeviceStatus.Disconnected;
         public enum ConnectionType { Usb, Wifi }
         public DeviceBoxes(string deviceName, string ipAddress)
         {
@@ -75,6 +76,8 @@ namespace ScreenSync.Desktop.User_Controls
         // 1. Durum LED'lerini yöneten TEK fonksiyon
         public void SetStatus(DeviceStatus status)
         {
+            CurrentStatus = status; // Kartın güncel durumunu hafızaya al
+
             // Hangisi aktifse onun Opacity'si 1.0 olur, diğerleri anında 0.2'ye düşer
             LightDisconnected.Opacity = (status == DeviceStatus.Disconnected) ? 1.0 : 0.2;
             LightReady.Opacity = (status == DeviceStatus.Ready) ? 1.0 : 0.2;

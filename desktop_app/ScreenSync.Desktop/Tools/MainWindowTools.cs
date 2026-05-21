@@ -216,59 +216,89 @@ namespace ScreenSync.Desktop.Tools
             };
             element.BeginAnimation(UIElement.OpacityProperty, fadeIn);
         }
-        
+
         public void MoveToHistory(DeviceBoxes card)
         {
             _mainWindow.Dispatcher.Invoke(() => {
-                // Aktif panelden çıkar
+                // 1. KURAL: Eğer kart favorilerdeyse, onu yerinden KESİNLİKLE KIPARDATMA!
+                // Sadece durumunu güncelliyoruz ve metottan çıkıyoruz.
+                if (_mainWindow.PanelFavorites.Children.Contains(card))
+                {
+                    card.SetStatus(DeviceBoxes.DeviceStatus.Disconnected);
+                    LogService.Info($"{card.DeviceName} yayını durdu ama favorilerde olduğu için yeri korundu.");
+                    return; // Taşıma işlemi yapmadan direkt çık
+                }
+
+                // 2. KURAL: Favorilerde değilse geçmişe taşıyacağız ama ÖNCE eski yerinden (Aktif Cihazlar) koparmalıyız!
                 if (_mainWindow.PanelActiveDevices.Children.Contains(card))
                 {
                     _mainWindow.PanelActiveDevices.Children.Remove(card);
                 }
 
-                // Eğer geçmiş panelinde zaten yoksa ekle
+                // 3. Geçmiş paneline ekle (Zaten orada değilse)
                 if (!_mainWindow.PanelHistoryDevices.Children.Contains(card))
                 {
                     _mainWindow.PanelHistoryDevices.Children.Add(card);
+                    card.SetStatus(DeviceBoxes.DeviceStatus.Disconnected);
+                    card.Opacity = 0.6; // Geçmişte olduğunu belli et
+                    LogService.Info($"{card.DeviceName} geçmiş bağlantılara taşındı.");
                 }
-
-                // Geçmişte olduğu belli olsun diye biraz karartalım (Opacity)
-                card.Opacity = 0.6;
-                // Kartın içindeki butonları/etkileşimleri kapatabilirsin
-                card.IsEnabled = false; 
-        
-                LogService.Info($"{card.TxtDeviceName} geçmiş bağlantılara taşındı.");
             });
         }
 
         public void MoveToActive(DeviceBoxes card)
         {
             _mainWindow.Dispatcher.Invoke(() => {
-                // Geçmişten çıkar
+                LogService.Info($"[MoveToActive] {card.DeviceName} için taşıma işlemi tetiklendi.");
+
+                // 1. KURAL: Kart favorilerdeyse yerinden ASLA kıpırdatmıyoruz!
+                if (_mainWindow.PanelFavorites.Children.Contains(card))
+                {
+                    LogService.Info($"[MoveToActive] {card.DeviceName} zaten favorilerde! Taşıma iptal edildi, sadece durum güncelleniyor.");
+
+                    // Görünürlüğü ve etkileşimi geri aç (Yerini değiştirmeden)
+                    card.Opacity = 1.0;
+                    card.IsEnabled = true;
+
+                    // Favorilerdeyken de animasyon oynamasını istersen:
+                    PlayFadeInAnimation(card);
+
+                    return; // Metottan direkt çıkıyoruz, aşağıdaki Add/Remove işlemleri pas geçiliyor.
+                }
+
+                // 2. Geçmişten çıkar
                 if (_mainWindow.PanelHistoryDevices.Children.Contains(card))
                 {
                     _mainWindow.PanelHistoryDevices.Children.Remove(card);
+                    LogService.Info($"[MoveToActive] {card.DeviceName} geçmiş cihazlar panelinden söküldü.");
                 }
 
-                // Aktife geri koy
+                // 3. Aktife geri koy
                 if (!_mainWindow.PanelActiveDevices.Children.Contains(card))
                 {
                     _mainWindow.PanelActiveDevices.Children.Add(card);
+                    LogService.Info($"[MoveToActive] {card.DeviceName} aktif cihazlar paneline eklendi.");
+                }
+                else
+                {
+                    LogService.Info($"[MoveToActive] {card.DeviceName} zaten aktif panelde, ekleme atlandı.");
                 }
 
                 // Görünürlüğü ve etkileşimi geri aç
                 card.Opacity = 1.0;
                 card.IsEnabled = true;
-        
+
                 // Şık bir giriş animasyonu
                 PlayFadeInAnimation(card);
+
+                LogService.Info($"[MoveToActive] {card.DeviceName} için işlem sorunsuz tamamlandı.");
             });
         }
 
         public void ToggleFavorite(DeviceBoxes card, bool isFavorite)
         {
             _mainWindow.Dispatcher.Invoke(() => {
-                // 1. Önce kartı her yerden acımasızca söküyoruz (Nerede olduğunu umursamadan)
+                // 1. Önce kartı her yerden acımasızca söküyoruz
                 if (_mainWindow.PanelActiveDevices.Children.Contains(card))
                     _mainWindow.PanelActiveDevices.Children.Remove(card);
 
@@ -287,9 +317,21 @@ namespace ScreenSync.Desktop.Tools
                 }
                 else
                 {
-                    _mainWindow.PanelHistoryDevices.Children.Add(card);
-                    card.Opacity = 0.6; // Senin isteğine göre şimdilik geçmişe gidiyor (soluk)
-                    LogService.Info($"{card.DeviceName} favorilerden çıkarıldı, geçmişe gönderildi.");
+                    // İŞTE BURASI: Kart favorilerden çıkınca o anki durumuna bakıyoruz
+                    if (card.CurrentStatus == DeviceBoxes.DeviceStatus.Ready || card.CurrentStatus == DeviceBoxes.DeviceStatus.Streaming)
+                    {
+                        // Cihaz hala yayındaysa veya bağlanmaya hazırsa ait olduğu aktifler paneline döner
+                        _mainWindow.PanelActiveDevices.Children.Add(card);
+                        card.Opacity = 1.0;
+                        LogService.Info($"{card.DeviceName} favorilerden çıkarıldı, tekrar Aktif Cihazlara döndü.");
+                    }
+                    else
+                    {
+                        // Sadece ve sadece bağlantısı kopuksa (Disconnected) geçmişe gönderilir
+                        _mainWindow.PanelHistoryDevices.Children.Add(card);
+                        card.Opacity = 0.6;
+                        LogService.Info($"{card.DeviceName} favorilerden çıkarıldı, bağlantısı olmadığı için geçmişe gönderildi.");
+                    }
                 }
             });
         }
