@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_app/log_files_page.dart';
+import 'log_file_manager.dart';
 import 'mainPageTools.dart'; // İş mantığını (Tools) dahil et
 import 'log_page.dart'; // Log sayfasını dahil et
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await LogFileManager.initSessionLog();
   runApp(const ScreenSyncApp());
 }
 
@@ -61,7 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => LogPage()),
+                MaterialPageRoute(builder: (context) => LogFilesPage()),
               );
             },
           )

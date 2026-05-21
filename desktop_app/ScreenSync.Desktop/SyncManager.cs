@@ -1,4 +1,7 @@
-﻿using ScreenSync.Network;
+﻿using ScreenSync.Desktop.Network;
+using ScreenSync.Desktop.Services;
+using ScreenSync.Desktop.Tools;
+using ScreenSync.Network;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -6,8 +9,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
-using ScreenSync.Desktop.Services;
-using ScreenSync.Desktop.Tools;
 
 namespace ScreenSync.Desktop
 {
@@ -16,6 +17,7 @@ namespace ScreenSync.Desktop
         private TcpServer _tcpServer;
         private FFmpegDecoder _decoder;
         private SyncManagerTools _tools;
+        private AudioReceiver _audioReceiver;
 
         // Komut Kanalı Nesneleri
         private TcpListener _commandListener;
@@ -32,6 +34,7 @@ namespace ScreenSync.Desktop
         {
             _tools = new SyncManagerTools(this);
             InitializeVideoComponents();
+            _audioReceiver = new AudioReceiver();
         }
 
         private void InitializeVideoComponents()
@@ -115,6 +118,7 @@ namespace ScreenSync.Desktop
             InitializeVideoComponents();
             LogService.Info("50001 (Video) portu tertemiz bir şekilde dinlenmeye başlandı!");
             _ = _tcpServer.StartListeningAsync(50001);
+            _audioReceiver.Start();
         }
 
         public void RejectStream()
@@ -127,6 +131,7 @@ namespace ScreenSync.Desktop
         {
             _tools.SendCommandToDevice(_commandStream, "STOP_STREAM");
             _tcpServer?.Stop();
+            _audioReceiver?.Stop();
         }
 
         public void StopAll()

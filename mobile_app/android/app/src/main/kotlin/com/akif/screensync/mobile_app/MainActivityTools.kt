@@ -294,6 +294,7 @@ class MainActivityTools(private val activity: Activity) {
                 sendLogToFlutter("[KOTLIN-VİDEO] Yayın başlatıldı. İlk Çözünürlük: ${width}x${height}")
 
                 Thread { streamVideoData() }.start()
+                Thread { streamAudioData() }.start()
                 Handler(Looper.getMainLooper()).post { eventSink?.success(mapOf("type" to "stream_started")) }
 
             } catch (e: Exception) {
@@ -423,6 +424,78 @@ class MainActivityTools(private val activity: Activity) {
             isStreaming = false
             Handler(Looper.getMainLooper()).post {
                 eventSink?.success(mapOf("type" to "stream_stopped"))
+            }
+        }
+    }
+
+    @android.annotation.SuppressLint("MissingPermission")
+    private fun streamAudioData() {
+        var audioRecord: android.media.AudioRecord? = null
+        var tcpSocket: java.net.Socket? = null
+
+        // YENİ EKLENEN: Arka plandan Flutter UI thread'ine güvenli log kargolayıcı
+        fun sendLog(msg: String) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                eventSink?.success(mapOf("type" to "log", "message" to msg))
+            }
+        }
+
+        try {
+            val sampleRate = 44100
+            val channelConfig = android.media.AudioFormat.CHANNEL_IN_MONO
+            val audioFormat = android.media.AudioFormat.ENCODING_PCM_16BIT
+            val minBufferSize = android.media.AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+
+            sendLog("[KOTLIN-SES] Ses donanımı hazırlanıyor...")
+
+            audioRecord = android.media.AudioRecord(
+                android.media.MediaRecorder.AudioSource.MIC,
+                sampleRate,
+                channelConfig,
+                audioFormat,
+                minBufferSize
+            )
+
+            if (audioRecord.state != android.media.AudioRecord.STATE_INITIALIZED) {
+                sendLog("[KOTLIN-SES-HATA] AudioRecord başlatılamadı! Mikrofon izni eksik.")
+                audioRecord.release()
+                return
+            }
+
+            audioRecord.startRecording()
+            sendLog("[KOTLIN-SES] Mikrofon kayda başladı, PC'ye bağlanılıyor...")
+
+            tcpSocket = java.net.Socket(targetIpAddress, 50002)
+            val outputStream = tcpSocket.getOutputStream()
+
+            sendLog("[KOTLIN-SES] PC'ye ses tüneli açıldı, aktarım başladı!")
+
+            val buffer = ByteArray(minBufferSize)
+
+            while (isStreaming) {
+                val readSize = audioRecord.read(buffer, 0, buffer.size)
+                if (readSize > 0) {
+                    try {
+                        outputStream.write(buffer, 0, readSize)
+                        outputStream.flush()
+                    } catch (e: Exception) {
+                        sendLog("[KOTLIN-SES-TCP] Ses ağı koptu: ${e.message}")
+                        break
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            sendLog("[KOTLIN-SES-CRITICAL] Döngü Çöktü: ${e.message}")
+        } finally {
+            try {
+                if (audioRecord?.state == android.media.AudioRecord.STATE_INITIALIZED) {
+                    audioRecord.stop()
+                }
+                audioRecord?.release()
+                tcpSocket?.close()
+                sendLog("[KOTLIN-SES] Ses kaynakları temizlendi.")
+            } catch (e: Exception) {
+                sendLog("[KOTLIN-SES-HATA] Temizleme hatası: ${e.message}")
             }
         }
     }

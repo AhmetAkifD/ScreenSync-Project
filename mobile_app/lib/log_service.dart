@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'log_file_manager.dart';
 
 class LogService {
   static final ValueNotifier<List<String>> logs = ValueNotifier<List<String>>([]);
@@ -37,7 +38,12 @@ class LogService {
 
   static void _addLog(String level, String message) {
     final timestamp = DateTime.now().toString().substring(11, 19);
-    // Yeni logu listenin en sonuna ekler
-    logs.value = [...logs.value, "[$timestamp] [$level] $message"];
+    final logLine = "[$timestamp] [$level] $message";
+
+    // Ekrana ekle
+    logs.value = [...logs.value, logLine];
+
+    // YENİ: Arka planda anında txt dosyasına kaydet
+    LogFileManager.writeLog(logLine);
   }
 }

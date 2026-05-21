@@ -158,17 +158,20 @@ namespace ScreenSync.Desktop.Tools
 
                 RunCmdCommand($"{fileName} reverse --remove-all");
                 LogService.Info("Eski ADB tünelleri temizlendi.");
-                
-                // İki port için ProcessStartInfo kod tekrarından kurtulup yardımcı CMD metoduna gönderiyoruz
+
+                // Komut, Video ve Ses için köprüleri sırasıyla açıyoruz
                 bool isPort50000Ready = RunCmdCommand($"{fileName} reverse tcp:50000 tcp:50000");
                 bool isPort50001Ready = RunCmdCommand($"{fileName} reverse tcp:50001 tcp:50001");
+                bool isPort50002Ready = RunCmdCommand($"{fileName} reverse tcp:50002 tcp:50002"); // YENİ EKLENEN SES PORTU
 
-                if (!isPort50000Ready || !isPort50001Ready)
+                // Herhangi biri başarısız olursa false dönüyoruz
+                if (!isPort50000Ready || !isPort50001Ready || !isPort50002Ready)
                 {
+                    LogService.Error("ADB portlarından biri veya birkaçı açılamadı.");
                     return false;
                 }
 
-                LogService.Info("ADB Reverse port yönlendirmeleri CMD üzerinden başarıyla açıldı.");
+                LogService.Info("ADB Reverse port yönlendirmeleri (Komut, Video ve Ses) CMD üzerinden başarıyla açıldı.");
                 return true;
             }
             catch (Exception ex)

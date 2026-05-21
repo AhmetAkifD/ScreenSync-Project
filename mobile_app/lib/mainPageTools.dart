@@ -194,12 +194,25 @@ class MainPageTools {
     try {
       isStreamLoading = true;
       updateUI();
+
       if (isStreaming) {
+        // 1. DURUM: Yayın zaten açıksa durdur. (İzin sormaya gerek yok)
         LogService.info("Yayını durdurma isteği gönderiliyor...");
         await platform.invokeMethod('stopCapture');
       } else {
-        LogService.info("Yayın başlatma isteği hedefe gönderiliyor...");
-        await platform.invokeMethod('startCapture', {'ip': targetIp});
+        // 2. DURUM: Yayın kapalıysa başlat. (İşte burada mikrofon izni şart)
+        var status = await Permission.microphone.request();
+
+        if (status.isGranted) {
+          LogService.info("Mikrofon izni alındı. Yayın başlatma isteği hedefe gönderiliyor...");
+          await platform.invokeMethod('startCapture', {'ip': targetIp});
+        } else {
+          // İzin reddedilirse yükleme modundan çık ve uyarı ver
+          isStreamLoading = false;
+          updateUI();
+          LogService.error("Mikrofon izni verilmediği için yayın iptal edildi.");
+          _showSnackBar(context, 'Ses aktarımı için mikrofon izni gereklidir!');
+        }
       }
     } on PlatformException catch (e) {
       isStreamLoading = false;

@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.annotation.RequiresApi
@@ -20,12 +21,33 @@ class ScreenCaptureService : Service() {
 
         val notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("ScreenSync")
-            .setContentText("Ekran PC'ye aktarılıyor...")
-            .setSmallIcon(android.R.drawable.ic_menu_camera) // Android'in varsayılan kamera ikonu
+            .setContentText("Ekran ve Ses PC'ye aktarılıyor...")
+            .setSmallIcon(android.R.drawable.ic_menu_camera)
             .build()
 
-        // Android'e "Ben bir ekran yakalama servisiyim" diyoruz
-        startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+        try {
+            // Android 14 (API 34) ve üzeri için tam uyumluluk kontrolü
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                // Hem ekran yakalama hem de mikrofon tipini bitsel olarak birleştirip servisi başlatıyoruz
+                startForeground(
+                    1,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                )
+            } else {
+                // Android 10 - 13 arası cihazlar için
+                startForeground(
+                    1,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                )
+            }
+            println("[KOTLIN-SERVICE] Ön plan servisi (Ekran + Mikrofon) başarıyla ayağa kalktı.")
+        } catch (e: Exception) {
+            println("[KOTLIN-SERVICE-HATA] Servis kombine tipte başlatılamadı, sadece ekrana düşülüyor: ${e.message}")
+            // Eğer mikrofon izni henüz tam oturmadıysa sunumda çökmesin diye sadece ekrana düşüş (Fallback) yapıyoruz
+            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+        }
 
         return START_NOT_STICKY
     }
