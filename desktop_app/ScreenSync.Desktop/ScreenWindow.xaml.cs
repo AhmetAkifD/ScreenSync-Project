@@ -1,4 +1,7 @@
+using ScreenSync.Desktop.Services;
+using ScreenSync.Desktop.Tools;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media.Imaging;
 
 namespace ScreenSync.Desktop
@@ -67,6 +70,62 @@ namespace ScreenSync.Desktop
 
             ScreenViewer.Width = targetWidth;
             ScreenViewer.Height = targetHeight;
+        }
+
+        private void ScreenViewer_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            LogService.Info("[MOUSE-TIK] Sol týk algýlandý. Koordinat hesaplama baþlýyor...");
+
+            // Týklanan noktanýn hedefini ScreenViewer olarak deðiþtirdik
+            Point clickPoint = e.GetPosition(ScreenViewer);
+            LogService.Info($"[MOUSE-TIK] WPF Týklanan Koordinat (Ham): X={clickPoint.X}, Y={clickPoint.Y}");
+
+            // Geniþlik ve yükseklik referanslarýný da ScreenViewer'dan alýyoruz
+            double imageWidth = ScreenViewer.ActualWidth;
+            double imageHeight = ScreenViewer.ActualHeight;
+            LogService.Info($"[MOUSE-TIK] WPF Görüntü Boyutlarý: Geniþlik={imageWidth}, Yükseklik={imageHeight}");
+
+            // Telefonun fiziksel çözünürlüðü (Dikey kullaným için)
+            double phoneWidth = 1080;
+            double phoneHeight = 2340;
+
+            int tapX = (int)((clickPoint.X / imageWidth) * phoneWidth);
+            int tapY = (int)((clickPoint.Y / imageHeight) * phoneHeight);
+            LogService.Info($"[MOUSE-TIK] Android'e gönderilecek hesaplanmýþ koordinat: X={tapX}, Y={tapY}");
+
+            Task.Run(() => {
+                // 1. Týpký senin port yönlendirme metodunda yaptýðýn gibi ADB'nin tam yolunu buluyoruz
+                string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string adbPath = System.IO.Path.Combine(localAppData, @"Android\Sdk\platform-tools\adb.exe");
+
+                // Yolda boþluk olma ihtimaline karþý exe yolunu týrnak içine alýyoruz
+                string adbExe = System.IO.File.Exists(adbPath) ? $"\"{adbPath}\"" : "adb";
+
+                LogService.Info("[MOUSE-TIK-CMD] ADB shell input tap komutu hazýrlanýyor...");
+
+                // 2. Komutu dinamik adb yolu ile oluþturuyoruz
+                string command = $"{adbExe} shell input tap {tapX} {tapY}";
+
+                LogService.Info($"[MOUSE-TIK-CMD] Çalýþtýrýlacak komut: {command}");
+
+                try
+                {
+                    bool result = MainWindowTools.RunCmdCommand(command);
+
+                    if (result)
+                    {
+                        LogService.Info("[MOUSE-TIK-CMD] Komut baþarýyla CMD'ye iletildi.");
+                    }
+                    else
+                    {
+                        LogService.Error("[MOUSE-TIK-CMD] Komut çalýþtýrýlamadý! RunCmdCommand false döndü.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogService.Error($"[MOUSE-TIK-CMD] Kritik Hata: {ex.Message}");
+                }
+            });
         }
     }
 }

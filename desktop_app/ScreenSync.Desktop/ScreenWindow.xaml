@@ -6,6 +6,10 @@
         WindowStartupLocation="CenterScreen"
         SizeToContent="WidthAndHeight">
     <Grid>
-        <Image x:Name="ScreenViewer" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <Image x:Name="ScreenViewer" 
+               Stretch="Uniform" 
+               HorizontalAlignment="Center" 
+               VerticalAlignment="Center"
+               MouseLeftButtonDown="ScreenViewer_MouseLeftButtonDown"/>
     </Grid>
 </Window>

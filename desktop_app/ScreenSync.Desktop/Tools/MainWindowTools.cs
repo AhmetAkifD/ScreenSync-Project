@@ -183,7 +183,7 @@ namespace ScreenSync.Desktop.Tools
             }
         }
 
-        private bool RunCmdCommand(string command)
+        public static bool RunCmdCommand(string command)
         {
             ProcessStartInfo processInfo = new ProcessStartInfo
             {
@@ -197,18 +197,25 @@ namespace ScreenSync.Desktop.Tools
 
             using (Process process = Process.Start(processInfo))
             {
+                // ÖNEMLİ DÜZELTME: Deadlock (Kilitlenme) olmaması için WaitForExit'ten ÖNCE okumalıyız
+                string error = process.StandardError.ReadToEnd();
+
                 process.WaitForExit();
+
                 if (process.ExitCode != 0)
                 {
-                    string error = process.StandardError.ReadToEnd();
                     LogService.Error($"CMD Hatası: {error}");
-                    MessageBox.Show($"Terminal Hatası: {error}", "Bağlantı Kurulamadı", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+                    // Eğer illaki ekrana uyarı basmak istersen (WPF kuralı):
+                    // Application.Current.Dispatcher.Invoke(() => { MessageBox.Show(...); });
+                    // Ama sürekli tıklanacağı için uyarı penceresi çıkarmak yerine sadece loglamak en iyisi.
+
                     return false;
                 }
             }
             return true;
         }
-        
+
         public void PlayFadeInAnimation(UIElement element)
         {
             var fadeIn = new System.Windows.Media.Animation.DoubleAnimation
