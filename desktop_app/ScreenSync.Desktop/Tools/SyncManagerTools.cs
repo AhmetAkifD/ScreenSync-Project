@@ -58,6 +58,20 @@ namespace ScreenSync.Desktop.Tools
                     LogService.Info("Cihazdan yayın izni (REQ_STREAM) geldi.");
                     _syncManager.TriggerStreamRequested();
                 }
+                else if (line.StartsWith("SETTINGS|")) // YENİ EKLENEN AYARLAR BLOĞU
+                {
+                    string[] parts = line.Split('|');
+                    if (parts.Length == 3 && int.TryParse(parts[1], out int newBitrate))
+                    {
+                        string newResolution = parts[2];
+                        // Singleton üzerinden ayarları güncelliyoruz
+                        StreamSettings.Instance.UpdateSettings(newBitrate, newResolution);
+                    }
+                    else
+                    {
+                        LogService.Error("Ayarlar komutu hatalı formatta geldi.");
+                    }
+                }
                 else if (line == "STREAM_STOPPED")
                 {
                     LogService.Info("Cihaz yayını kendi durdurdu (STREAM_STOPPED).");

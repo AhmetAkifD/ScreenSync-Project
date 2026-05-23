@@ -221,6 +221,22 @@ class MainPageTools {
     }
   }
 
+  // --- 6. YAYIN AYARLARINI GÜNCELLEME ---
+  Future<void> sendSettingsToAndroid(int bitrate, String resolution) async {
+    try {
+      LogService.info("[FLUTTER] Yeni ayarlar Kotlin'e iletiliyor: $resolution / $bitrate Mbps");
+
+      // Kotlin'deki 'updateStreamSettings' metodunu tetikliyoruz
+      await platform.invokeMethod('updateStreamSettings', {
+        'bitrate': bitrate,
+        'resolution': resolution,
+      });
+
+    } on PlatformException catch (e) {
+      LogService.error("[FLUTTER] Kotlin ile iletişim hatası (Ayarlar gönderilemedi): ${e.message}");
+    }
+  }
+
   // --- YARDIMCI METOTLAR ---
   void _showSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(

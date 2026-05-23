@@ -51,6 +51,11 @@ class MainActivity: FlutterActivity() {
         // 2. Flutter'dan Gelen İstekleri Karşılama Kanalı (MethodChannel)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
+                "updateStreamSettings" -> {
+                    val bitrate = call.argument<Int>("bitrate") ?: 4
+                    val resolution = call.argument<String>("resolution") ?: "720p"
+                    tools.updateStreamSettings(bitrate, resolution, result)
+                }
                 "isUsbConnected" -> {
                     val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
                     val chargePlug = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, -1) ?: -1

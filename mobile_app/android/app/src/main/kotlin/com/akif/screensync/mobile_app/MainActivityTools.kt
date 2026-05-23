@@ -1,15 +1,19 @@
 package com.akif.screensync.mobile_app
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
+import android.media.AudioFormat
+import android.media.AudioRecord
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
+import android.media.MediaRecorder
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.net.NetworkInfo
@@ -76,6 +80,10 @@ class MainActivityTools(private val activity: Activity) {
             }
         }
     }
+
+    // --- YAYIN AYARLARI ---
+    var globalBitrate: Int = 4000000 // 4 Mbps (Varsayılan)
+    var globalResolution: String = "720p" // "720p" veya "1080p"
 
     fun initialize() {
         manager = activity.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
@@ -190,9 +198,9 @@ class MainActivityTools(private val activity: Activity) {
             try {
                 try { commandIn?.close(); commandOut?.close(); commandSocket?.close() } catch (e: Exception) { }
 
-                commandSocket = java.net.Socket(targetIpAddress, 50000)
-                commandOut = java.io.PrintWriter(commandSocket!!.getOutputStream(), true)
-                commandIn = java.io.BufferedReader(java.io.InputStreamReader(commandSocket!!.getInputStream()))
+                commandSocket = Socket(targetIpAddress, 50000)
+                commandOut = PrintWriter(commandSocket!!.getOutputStream(), true)
+                commandIn = BufferedReader(InputStreamReader(commandSocket!!.getInputStream()))
 
                 commandOut?.println("HELO|${Build.MODEL}")
                 while (true) {
@@ -251,7 +259,7 @@ class MainActivityTools(private val activity: Activity) {
                 val screenHeight = displayMetrics.heightPixels
                 val ratio = screenHeight.toFloat() / screenWidth.toFloat()
 
-                var width = 720
+                var width = if (globalResolution == "1080p") 1080 else 720
                 var height = (width * ratio).toInt()
                 if (height % 2 != 0) height += 1
 
@@ -272,7 +280,7 @@ class MainActivityTools(private val activity: Activity) {
 
                 val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height)
                 format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-                format.setInteger(MediaFormat.KEY_BIT_RATE, 2000000)
+                format.setInteger(MediaFormat.KEY_BIT_RATE, globalBitrate)
                 format.setInteger(MediaFormat.KEY_FRAME_RATE, 30)
                 format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
 
@@ -322,15 +330,15 @@ class MainActivityTools(private val activity: Activity) {
             val screenWidth = displayMetrics.widthPixels
             val screenHeight = displayMetrics.heightPixels
 
-            var width = 720
-            var height = 1280
+            var width: Int
+            var height: Int
 
             if (screenWidth > screenHeight) {
-                height = 720
+                height = if (globalResolution == "1080p") 1080 else 720
                 width = (height * (screenWidth.toFloat() / screenHeight.toFloat())).toInt()
                 if (width % 2 != 0) width += 1
             } else {
-                width = 720
+                width = if (globalResolution == "1080p") 1080 else 720
                 height = (width * (screenHeight.toFloat() / screenWidth.toFloat())).toInt()
                 if (height % 2 != 0) height += 1
             }
@@ -338,7 +346,7 @@ class MainActivityTools(private val activity: Activity) {
 
             val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height)
             format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-            format.setInteger(MediaFormat.KEY_BIT_RATE, 2000000)
+            format.setInteger(MediaFormat.KEY_BIT_RATE, globalBitrate)
             format.setInteger(MediaFormat.KEY_FRAME_RATE, 30)
             format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
 
@@ -428,35 +436,35 @@ class MainActivityTools(private val activity: Activity) {
         }
     }
 
-    @android.annotation.SuppressLint("MissingPermission")
+    @SuppressLint("MissingPermission")
     private fun streamAudioData() {
-        var audioRecord: android.media.AudioRecord? = null
-        var tcpSocket: java.net.Socket? = null
+        var audioRecord: AudioRecord? = null
+        var tcpSocket: Socket? = null
 
         // YENİ EKLENEN: Arka plandan Flutter UI thread'ine güvenli log kargolayıcı
         fun sendLog(msg: String) {
-            android.os.Handler(android.os.Looper.getMainLooper()).post {
+            Handler(Looper.getMainLooper()).post {
                 eventSink?.success(mapOf("type" to "log", "message" to msg))
             }
         }
 
         try {
             val sampleRate = 44100
-            val channelConfig = android.media.AudioFormat.CHANNEL_IN_MONO
-            val audioFormat = android.media.AudioFormat.ENCODING_PCM_16BIT
-            val minBufferSize = android.media.AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+            val channelConfig = AudioFormat.CHANNEL_IN_MONO
+            val audioFormat = AudioFormat.ENCODING_PCM_16BIT
+            val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
 
             sendLog("[KOTLIN-SES] Ses donanımı hazırlanıyor...")
 
-            audioRecord = android.media.AudioRecord(
-                android.media.MediaRecorder.AudioSource.MIC,
+            audioRecord = AudioRecord(
+                MediaRecorder.AudioSource.MIC,
                 sampleRate,
                 channelConfig,
                 audioFormat,
                 minBufferSize
             )
 
-            if (audioRecord.state != android.media.AudioRecord.STATE_INITIALIZED) {
+            if (audioRecord.state != AudioRecord.STATE_INITIALIZED) {
                 sendLog("[KOTLIN-SES-HATA] AudioRecord başlatılamadı! Mikrofon izni eksik.")
                 audioRecord.release()
                 return
@@ -465,7 +473,7 @@ class MainActivityTools(private val activity: Activity) {
             audioRecord.startRecording()
             sendLog("[KOTLIN-SES] Mikrofon kayda başladı, PC'ye bağlanılıyor...")
 
-            tcpSocket = java.net.Socket(targetIpAddress, 50002)
+            tcpSocket = Socket(targetIpAddress, 50002)
             val outputStream = tcpSocket.getOutputStream()
 
             sendLog("[KOTLIN-SES] PC'ye ses tüneli açıldı, aktarım başladı!")
@@ -488,7 +496,7 @@ class MainActivityTools(private val activity: Activity) {
             sendLog("[KOTLIN-SES-CRITICAL] Döngü Çöktü: ${e.message}")
         } finally {
             try {
-                if (audioRecord?.state == android.media.AudioRecord.STATE_INITIALIZED) {
+                if (audioRecord?.state == AudioRecord.STATE_INITIALIZED) {
                     audioRecord.stop()
                 }
                 audioRecord?.release()
@@ -512,5 +520,19 @@ class MainActivityTools(private val activity: Activity) {
         Handler(Looper.getMainLooper()).post {
             eventSink?.success(mapOf("type" to "log", "message" to message))
         }
+    }
+
+    fun updateStreamSettings(bitrate: Int, resolution: String, result: MethodChannel.Result) {
+        globalBitrate = bitrate * 1000000 // Mbps değerini bit'e çeviriyoruz
+        globalResolution = resolution
+
+        sendLogToFlutter("[KOTLIN-AYAR] Yeni ayarlar kaydedildi: $resolution / $bitrate Mbps")
+
+        // EĞER YAYIN AKIYORSA, TCP'Yİ KOPARMADAN ENCODER'I YENİDEN İNŞA ET!
+        if (isStreaming) {
+            sendLogToFlutter("[KOTLIN-AYAR] Yayın aktif, ayarlar anında uygulanıyor...")
+            rebuildEncoder()
+        }
+        result.success(true)
     }
 }
