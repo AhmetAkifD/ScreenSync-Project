@@ -37,9 +37,9 @@ namespace ScreenSync.Desktop
 
         private void AdjustWindowSize(double videoWidth, double videoHeight)
         {
-            // %50 küçültmek için * 0.5 yapýyoruz (Senin kodunda 1 kalmýþtý)
-            double maxAllowedHeight = SystemParameters.WorkArea.Height * 0.5;
-            double maxAllowedWidth = SystemParameters.WorkArea.Width * 0.5;
+            // 1. Görüntünün %85'e kadar büyümesine izin veriyoruz (0.5 çok küçüktü)
+            double maxAllowedHeight = SystemParameters.WorkArea.Height * 0.85;
+            double maxAllowedWidth = SystemParameters.WorkArea.Width * 0.85;
 
             double ratio = videoWidth / videoHeight;
             double targetWidth;
@@ -68,8 +68,14 @@ namespace ScreenSync.Desktop
                 }
             }
 
-            ScreenViewer.Width = targetWidth;
-            ScreenViewer.Height = targetHeight;
+            // 2. Resmin "sabit kalma" inatçýlýðýný kýrýyoruz (Esnek býrakýyoruz)
+            ScreenViewer.Width = double.NaN;
+            ScreenViewer.Height = double.NaN;
+
+            // 3. Resim yerine direkt olarak Window'un (Pencerenin) boyutunu ayarlýyoruz!
+            // +40 piksel, Windows'un üstteki baþlýk çubuðu (kapat/küçült alaný) içindir.
+            this.Width = targetWidth;
+            this.Height = targetHeight + 40;
         }
 
         private void ScreenViewer_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
