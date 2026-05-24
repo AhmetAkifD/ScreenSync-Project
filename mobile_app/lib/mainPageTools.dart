@@ -67,8 +67,25 @@ class MainPageTools {
       }
       else if (type == 'stream_rejected') {
         isStreamLoading = false;
+        isStreaming = false;
+
+        // Ekranı kıpkırmızı yapıp mesajı gömüyoruz
+        statusText = "Yayın İsteği Reddedildi";
+        statusColor = Colors.red.shade800; // O şık, göz alıcı koyu kırmızı ambiyans
+
         LogService.error("Yayın izni masaüstü tarafından REDDEDİLDİ.");
-        _showSnackBar(context, 'Ekran paylaşım izni reddedildi.');
+        updateUI(); // Arayüzü hemen kırmızıya boyamak için tetikliyoruz
+
+        // 3 saniye o kırmızı ambiyansta beklesin, sonra temiz bir "Sistem Hazır" durumuna dönsün
+        Future.delayed(const Duration(seconds: 3), () {
+          // Eğer o 3 saniye içinde kullanıcı çılgınlık yapıp yeni bir yayın başlatmadıysa
+          if (!isStreaming) {
+            isConnected = false; // Soket kapandığı için bağlantıyı da sıfırlıyoruz
+            statusText = "Sistem Hazır";
+            statusColor = Colors.grey;
+            updateUI(); // Ve ekran eski cool gri haline geri süzülüyor
+          }
+        });
       }
       else if (type == 'stream_stopped') {
         isStreaming = false;
@@ -76,6 +93,17 @@ class MainPageTools {
         statusText = "Yayın Durduruldu";
         statusColor = Colors.green;
         LogService.info("Masaüstünden yayın durdurma sinyali alındı.");
+
+        // YENİ: 3 saniye bekle ve sistemi eski haline döndür
+        Future.delayed(const Duration(seconds: 3), () {
+          // Eğer bu 3 saniye içinde kullanıcı tekrar yayını başlatmadıysa durumu sıfırla
+          if (!isStreaming) {
+            // Tamamen kopmuşsa en baştaki varsayılan duruma dön
+            statusText = "Sistem Hazır";
+            statusColor = Colors.grey;
+            updateUI(); // Arayüze "kendini yenile" komutunu yolla
+          }
+        });
       }
       else if (type == 'disconnected') {
         isConnected = false;
@@ -156,11 +184,13 @@ class MainPageTools {
       // YENİ KONTROL: Kotlin'e USB takılı mı diye sor
       final bool isUsbPlugged = await platform.invokeMethod('isUsbConnected');
 
-      if (!isUsbPlugged) {
+      //YENİ UI GÜNCELLEMESİNDEN DOLAYI ALTTAKİ KOD PROGRAMIN ÇALIŞMASINA ENGEL OLUYOR
+      //TODO USB tespiti güncellemeden dolayı bozuldu. Düzeltilmesi gerekli
+      /*if (!isUsbPlugged) {
         LogService.error("USB kablosu bağlı değil, işlem reddedildi.");
         _showSnackBar(context, 'Hata: Lütfen telefonu PC\'ye kabloyla bağlayın!');
         return; // İşlemi anında durdur, aşağıdaki kodları (arayüz değişimini) çalıştırma
-      }
+      }*/
 
       // Kablo takılıysa her zamanki gibi devam et...
       isConnected = true;
