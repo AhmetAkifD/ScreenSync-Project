@@ -67,9 +67,6 @@ namespace ScreenSync.Desktop.Tools
             _mainWindow.Dispatcher.Invoke(() => {
                 SetSystemStatus("Yayın Aktif!", Brushes.Green);
                 activeDeviceBox.SetStatus(DeviceStatus.Streaming);
-                
-                _mainWindow.BtnShowStream.IsEnabled = false;
-                _mainWindow.BtnShowStream.Content = "Yayın Aktif";
             });
         }
 
@@ -78,7 +75,6 @@ namespace ScreenSync.Desktop.Tools
             _mainWindow.Dispatcher.Invoke(() => {
                 SetSystemStatus("Bağlantı koptu. Yeni bağlantı bekleniyor...", Brushes.Red);
                 
-                _mainWindow.BtnShowStream.IsEnabled = false;
                 _mainWindow.BtnListenPort.IsEnabled = true;
                 _mainWindow.BtnListenPort.Content = "Portu Dinlemeye Başla";
                 
@@ -93,38 +89,19 @@ namespace ScreenSync.Desktop.Tools
 
         public void HandleIncomingStreamRequest(SyncManager syncManager, DeviceBoxes activeDeviceBox)
         {
-            if (_mainWindow.IsPopupOpen || _mainWindow.IsUserWantsToSee) 
+            if (_mainWindow.IsPopupOpen || _mainWindow.IsUserWantsToSee)
             {
                 LogService.Info("Zaten aktif bir yayın veya istek var. Yeni istek reddedildi.");
-                return; 
+                return;
             }
 
             _mainWindow.Dispatcher.Invoke(() => {
-                _mainWindow.IsPopupOpen = true; // Değişkeni burada güncelliyoruz
-                LogService.Info("Telefondan yayın isteği geldi, kullanıcı onayı bekleniyor...");
+                _mainWindow.IsPopupOpen = true; // Sistemi başka isteklere kilitliyoruz
+                LogService.Info($"[{activeDeviceBox.DeviceName}] cihazından yayın isteği geldi, kullanıcı onayı bekleniyor...");
 
-                var result = MessageBox.Show(
-                    "Galaxy A56 cihazı ekranını paylaşmak istiyor. Onaylıyor musunuz?",
-                    "Gelen Yayın İsteği",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Information
-                );
-
-                _mainWindow.IsPopupOpen = false;
-
-                if (result == MessageBoxResult.Yes)
-                {
-                    LogService.Info("Kullanıcı yayın isteğini ONAYLADI.");
-                    syncManager.ApproveStream();
-                    SetStreamActiveState(activeDeviceBox);
-            
-                    _mainWindow.IsUserWantsToSee = true; // Yayını izleme izni verildi
-                }
-                else
-                {
-                    LogService.Error("Kullanıcı yayın isteğini REDDETTİ.");
-                    syncManager.RejectStream();
-                }
+                // MessageBox'ı tamamen sildik! 
+                // Onun yerine doğrudan kartı "İstek (Request)" moduna sokuyoruz:
+                activeDeviceBox.SetRequestMode(true);
             });
         }
 

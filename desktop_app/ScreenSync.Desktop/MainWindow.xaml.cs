@@ -41,10 +41,39 @@ namespace ScreenSync.Desktop
                     if (_activeDeviceBox == null)
                     {
                         _activeDeviceBox = _tools.CreateAndAttachDeviceBox(deviceName, "127.0.0.1 (USB)");
+
+                        // MEVCUT KOD: Favori butonunu dinleme
                         _activeDeviceBox.OnFavoriteToggled += (card, isFavorite) =>
                         {
                             _tools.ToggleFavorite(card, isFavorite);
                         };
+
+                        // --- YENİ EKLENEN 1: KABUL ET DİNLEYİCİSİ ---
+                        _activeDeviceBox.OnStreamApproved += (ip) =>
+                        {
+                            Dispatcher.Invoke(() =>
+                            {
+                                LogService.Info("Kullanıcı kart üzerinden yayın isteğini ONAYLADI.");
+                                _syncManager.ApproveStream();
+                                _tools.SetStreamActiveState(_activeDeviceBox);
+
+                                IsUserWantsToSee = true;
+                                IsPopupOpen = false; // Kilidi açıyoruz ki yeni istek gelebilsin
+                            });
+                        };
+
+                        // --- YENİ EKLENEN 2: REDDET DİNLEYİCİSİ ---
+                        _activeDeviceBox.OnStreamRejected += (ip) =>
+                        {
+                            Dispatcher.Invoke(() =>
+                            {
+                                LogService.Error("Kullanıcı kart üzerinden yayın isteğini REDDETTİ.");
+                                _syncManager.RejectStream();
+
+                                IsPopupOpen = false; // Kilidi açıyoruz
+                            });
+                        };
+
                         _tools.PlayFadeInAnimation(_activeDeviceBox);
                     }
                     // 2. Senaryo: Cihaz daha önce bağlandı ve geçmişe atıldı (Geri dönüyor)
