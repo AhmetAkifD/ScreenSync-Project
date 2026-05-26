@@ -112,10 +112,9 @@ namespace ScreenSync.Desktop
                 _ = _syncManager.StartCommandServer(VIDEO_PORT);
 
                 BtnListenPort.IsEnabled = false;
-                BtnListenPort.Content = "Tünel Açık";
                 _activeDeviceBox?.SetConnection(DeviceBoxes.ConnectionType.Usb);
                 
-                LogService.Info($"Komut sunucusu {VIDEO_PORT} portunda dinlenmeye başlandı.");
+                LogService.Info($"{VIDEO_PORT} portu dinleniyor.");
             }
         }
 

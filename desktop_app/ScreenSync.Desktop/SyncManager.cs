@@ -68,7 +68,7 @@ namespace ScreenSync.Desktop
                 _commandListener?.Stop();
                 _commandListener = new TcpListener(IPAddress.Any, port);
                 _commandListener.Start();
-                TriggerStatusChanged($"Komut kanalı {port} portunda dinleniyor...");
+                TriggerStatusChanged($"{port} portu dinleniyor...");
 
                 while (true)
                 {
