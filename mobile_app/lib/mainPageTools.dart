@@ -267,6 +267,15 @@ class MainPageTools {
     }
   }
 
+  Future<void> toggleMicrophone(bool isMuted) async {
+    try {
+      await platform.invokeMethod('toggleMicrophone', {'isMuted': isMuted});
+      LogService.info(isMuted ? "[UI] Mikrofon kapatma isteği gönderildi." : "[UI] Mikrofon açma isteği gönderildi.");
+    } catch (e) {
+      LogService.error("Mikrofon durumu değiştirilemedi: $e");
+    }
+  }
+
   // --- YARDIMCI METOTLAR ---
   void _showSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(

@@ -61,6 +61,7 @@ class MainActivityTools(private val activity: Activity) {
     var commandSocket: Socket? = null
     var commandOut: PrintWriter? = null
     var commandIn: BufferedReader? = null
+    var isMicMuted = true
 
     // Ekranın döndüğünü anında yakalayan ajanımız
     private val displayListener = object : DisplayManager.DisplayListener {
@@ -484,6 +485,11 @@ class MainActivityTools(private val activity: Activity) {
                 val readSize = audioRecord.read(buffer, 0, buffer.size)
                 if (readSize > 0) {
                     try {
+                        // Durumu direkt merkezden (Singleton) okuyoruz
+                        if (StreamStateManager.isMicMuted) {
+                            buffer.fill(0) // Sessizlik hilesi
+                        }
+
                         outputStream.write(buffer, 0, readSize)
                         outputStream.flush()
                     } catch (e: Exception) {

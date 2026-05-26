@@ -21,6 +21,7 @@ class MainActivity: FlutterActivity() {
     private lateinit var tools: MainActivityTools
     private var receiver: BroadcastReceiver? = null
     private val intentFilter = IntentFilter()
+    var isMicMuted = true
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -68,6 +69,15 @@ class MainActivity: FlutterActivity() {
                 "startDiscovery" -> tools.startDiscovery(result)
                 "stopDiscovery" -> tools.stopDiscovery(result)
                 "connect" -> tools.connectToPC(call.argument<String>("address"), result)
+                "toggleMicrophone" -> {
+                    val isMuted = call.argument<Boolean>("isMuted") ?: true
+
+                    // Sinyali direkt tekil merkeze yazıyoruz
+                    StreamStateManager.isMicMuted = isMuted
+
+                    println(if (isMuted) "[KOTLIN-SES] Mikrofon SESSİZE alındı." else "[KOTLIN-SES] Mikrofon AÇILDI.")
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }

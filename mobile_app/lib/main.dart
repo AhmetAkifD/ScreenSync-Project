@@ -46,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   late AnimationController _breathingController;
   late Animation<double> _breathingAnimation;
   bool _showAppBorder = false;
+  bool isMicMuted = true;
 
   @override
   void initState() {
@@ -105,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   decoration: BoxDecoration(
                     gradient: RadialGradient(
                       center: const Alignment(0, -0.4),
-                      radius: _breathingAnimation.value, // İşte sihir burada! Çap sürekli değişiyor
+                      radius: _breathingAnimation.value,
                       colors: [
                         tools.statusColor.withOpacity(0.25), // Işığın merkez gücü
                         const Color(0xFF121212), // Karanlığa karışma
@@ -144,168 +145,189 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             // --- 1. KATMAN: ANA İÇERİK (Arayüzünün geri kalanı) ---
             SafeArea(
               child: Padding(
-                // Yazı arkada süzüleceği için butonları biraz daha aşağı ittik (top: 220)
                 padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    const Spacer(flex: 2,),
-                    // --- YENİ 1: KAYDIRMALI MOD ŞALTERİ (TOGGLE SWITCH) ---
-                    Container(
-                      width: 220,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF252525),
-                        borderRadius: BorderRadius.circular(25),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4)),
-                        ],
-                      ),
-                      child: Stack(
-                        children: [
-                          // Kayar Arka Plan (Animasyonlu)
-                          AnimatedPositioned(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                            top: 4,
-                            bottom: 4,
-                            left: isUsbModeSelected ? 110 : 4,
-                            right: isUsbModeSelected ? 4 : 110,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.deepPurpleAccent,
-                                borderRadius: BorderRadius.circular(20),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Column(
+                    children: [
+                      const Spacer(flex: 4), // Üst boşluk
+
+                      // --- YENİ 1: KAYDIRMALI MOD ŞALTERİ (TOGGLE SWITCH) ---
+                      Container(
+                        width: 220,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF252525),
+                          borderRadius: BorderRadius.circular(25),
+                          boxShadow: const [
+                            BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4)),
+                          ],
+                        ),
+                        child: Stack(
+                          children: [
+                            AnimatedPositioned(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                              top: 4,
+                              bottom: 4,
+                              left: isUsbModeSelected ? 110 : 4,
+                              right: isUsbModeSelected ? 4 : 110,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.deepPurpleAccent,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
                               ),
                             ),
-                          ),
-                          // Buton Yazıları
-                          Row(
-                            children: [
-                              Expanded(
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTap: () => setState(() => isUsbModeSelected = false),
-                                  child: Center(
-                                    child: Text("Wi-Fi", style: TextStyle(
-                                      color: !isUsbModeSelected ? Colors.white : Colors.white54,
-                                      fontWeight: FontWeight.bold,
-                                    )),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () => setState(() => isUsbModeSelected = false),
+                                    child: Center(
+                                      child: Text("Wi-Fi", style: TextStyle(
+                                        color: !isUsbModeSelected ? Colors.white : Colors.white54,
+                                        fontWeight: FontWeight.bold,
+                                      )),
+                                    ),
                                   ),
                                 ),
-                              ),
-                              Expanded(
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTap: () => setState(() => isUsbModeSelected = true),
-                                  child: Center(
-                                    child: Text("USB", style: TextStyle(
-                                      color: isUsbModeSelected ? Colors.white : Colors.white54,
-                                      fontWeight: FontWeight.bold,
-                                    )),
+                                Expanded(
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () => setState(() => isUsbModeSelected = true),
+                                    child: Center(
+                                      child: Text("USB", style: TextStyle(
+                                        color: isUsbModeSelected ? Colors.white : Colors.white54,
+                                        fontWeight: FontWeight.bold,
+                                      )),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // --- YENİ 2: DİNAMİK BAĞLANTI BUTONU ---
-                    TextButton.icon(
-                      onPressed: () {
-                        if (isUsbModeSelected) {
-                          tools.enableUsbMode(context);
-                        } else {
-                          tools.toggleDiscovery(context);
-                        }
-                      },
-                      icon: Icon(
-                          isUsbModeSelected ? Icons.usb_rounded : Icons.wifi_find_rounded,
-                          color: Colors.white70
-                      ),
-                      label: Text(
-                        isUsbModeSelected ? "Ara" : (tools.isDiscovering ? "Aramayı Durdur" : "Ara"),
-                        style: const TextStyle(color: Colors.white, fontSize: 16),
-                      ),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        backgroundColor: Colors.white.withOpacity(0.05),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    // --- YENİ 3: DEV YAYIN DEKLANŞÖRÜ (PULSATING CORE) ---
-                    GestureDetector(
-                      onTap: tools.isStreamLoading ? null : () => tools.toggleScreenCapture(context),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 500),
-                        width: 100,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: tools.isStreaming ? Colors.red.shade600 : Colors.deepPurpleAccent,
-                          boxShadow: [
-                            BoxShadow(
-                              // Yayın aktifse etrafa kırmızı ışık saçar, değilse hafif mor bir gölge
-                              color: tools.isStreaming ? Colors.red.withOpacity(0.6) : Colors.deepPurpleAccent.withOpacity(0.3),
-                              blurRadius: tools.isStreaming ? 30 : 15,
-                              spreadRadius: tools.isStreaming ? 10 : 2,
+                              ],
                             ),
                           ],
                         ),
-                        child: Center(
-                          child: tools.isStreamLoading
-                              ? const CircularProgressIndicator(color: Colors.white)
-                              : Icon(
-                            tools.isStreaming ? Icons.stop_rounded : Icons.cast_rounded,
-                            color: Colors.white,
-                            size: 40,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // --- YENİ 2: DİNAMİK BAĞLANTI BUTONU ---
+                      TextButton.icon(
+                        onPressed: () {
+                          if (isUsbModeSelected) {
+                            tools.enableUsbMode(context);
+                          } else {
+                            tools.toggleDiscovery(context);
+                          }
+                        },
+                        icon: Icon(
+                            isUsbModeSelected ? Icons.usb_rounded : Icons.wifi_find_rounded,
+                            color: Colors.white70
+                        ),
+                        label: Text(
+                          isUsbModeSelected ? "Ara" : (tools.isDiscovering ? "Aramayı Durdur" : "Ara"),
+                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          backgroundColor: Colors.white.withOpacity(0.05),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // --- YENİ 3: DEV YAYIN DEKLANŞÖRÜ (PULSATING CORE) ---
+                      GestureDetector(
+                        onTap: tools.isStreamLoading ? null : () => tools.toggleScreenCapture(context),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 500),
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: tools.isStreaming ? Colors.red.shade600 : Colors.deepPurpleAccent,
+                            boxShadow: [
+                              BoxShadow(
+                                color: tools.isStreaming ? Colors.red.withOpacity(0.6) : Colors.deepPurpleAccent.withOpacity(0.3),
+                                blurRadius: tools.isStreaming ? 30 : 15,
+                                spreadRadius: tools.isStreaming ? 10 : 2,
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: tools.isStreamLoading
+                                ? const CircularProgressIndicator(color: Colors.white)
+                                : Icon(
+                              tools.isStreaming ? Icons.stop_rounded : Icons.cast_rounded,
+                              color: Colors.white,
+                              size: 40,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-
-                    const SizedBox(height: 40),
-
-                    // 4. BULUNAN CİHAZLAR LİSTESİ
-                    // Üstteki Spacer() ile alttaki Expanded ekranı eşit paylaşır, butonlar kusursuz merkeze oturur.
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: tools.foundDevices.length,
-                        itemBuilder: (context, index) {
-                          var device = tools.foundDevices[index];
-                          return Card(
-                            color: const Color(0xFF1E1E1E),
-                            margin: const EdgeInsets.symmetric(vertical: 6),
-                            elevation: 4,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            child: ListTile(
-                              leading: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF2C2C2C),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(Icons.computer, color: Colors.white70),
-                              ),
-                              title: Text(device['deviceName']!, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                              subtitle: Text(device['deviceAddress']!, style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                              trailing: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blueAccent.withOpacity(0.2),
-                                  foregroundColor: Colors.blueAccent,
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                                onPressed: () => tools.connectToPC(context, device['deviceAddress']!),
-                                child: const Text("Bağlan", style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 40),
+                      // --- YENİ 4: MİKROFON BUTONU (AŞAĞI KAYMA EFEKTİ VE SABİT ALAN) ---
+                      SizedBox(
+                        height: 130, // 1. ÇÖZÜM: Alanı sabitledik. Butonlar artık ASLA yukarı kaymaz.
+                        child: IgnorePointer(
+                          ignoring: !tools.isStreaming, // Görünmezken yanlışlıkla tıklanmasını engeller
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 300),
+                            opacity: tools.isStreaming ? 1.0 : 0.0,
+                            child: AnimatedSlide(
+                              duration: const Duration(milliseconds: 500),
+                              curve: Curves.easeOutBack, // Hafif yaylanarak yerine oturma efekti
+                              // 2. ÇÖZÜM: Y eksenini -0.8'den 0'a çekerek "yukarıdan aşağı inme" hissi verdik
+                              offset: tools.isStreaming ? Offset.zero : const Offset(0, -0.8),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const SizedBox(height: 10),
+                                  GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        isMicMuted = !isMicMuted;
+                                      });
+                                      tools.toggleMicrophone(isMicMuted);
+                                    },
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 300),
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: isMicMuted ? const Color(0xFF252525) : Colors.tealAccent.withOpacity(0.15),
+                                        border: Border.all(
+                                          color: isMicMuted ? Colors.white24 : Colors.tealAccent,
+                                          width: 2,
+                                        ),
+                                        boxShadow: [
+                                          if (!isMicMuted)
+                                            BoxShadow(
+                                              color: Colors.tealAccent.withOpacity(0.3),
+                                              blurRadius: 15,
+                                              spreadRadius: 2,
+                                            )
+                                        ],
+                                      ),
+                                      child: Icon(
+                                        isMicMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                                        color: isMicMuted ? Colors.white54 : Colors.tealAccent,
+                                        size: 28,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                ],
                               ),
                             ),
-                          );
-                        },
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+
+                      const Spacer(flex: 1),
+                    ],
+                  ),
                 ),
               ),
             ),
