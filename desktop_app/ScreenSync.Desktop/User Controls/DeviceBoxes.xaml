@@ -57,30 +57,6 @@
                     <Path Data="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.35 19.43,11.03L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.97 19.05,5.05L16.56,6.05C16.04,5.66 15.47,5.34 14.86,5.12L14.47,2.47C14.44,2.23 14.24,2.05 14,2.05H10C9.76,2.05 9.56,2.23 9.53,2.47L9.14,5.12C8.53,5.34 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.97 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11.03C4.53,11.35 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.95C7.96,18.34 8.53,18.66 9.14,18.88L9.53,21.53C9.56,21.77 9.76,21.95 10,21.95H14C14.24,21.95 14.44,21.77 14.47,21.53L14.86,18.88C15.47,18.66 16.04,18.34 16.56,17.95L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" 
                           Fill="#666666" Stretch="Fill" Width="18" Height="18"/>
                 </Button>
-
-                <StackPanel x:Name="PanelNormalActions" Orientation="Horizontal" HorizontalAlignment="Right" Visibility="Visible">
-                    <Button Foreground="White" Height="32" Width="40" Margin="0,0,8,0" Cursor="Hand">
-                        <Button.Template>
-                            <ControlTemplate TargetType="Button">
-                                <Border Background="#F44336" CornerRadius="6">
-                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                            </ControlTemplate>
-                        </Button.Template>
-                        <Path Data="M 0,0 L 10,0 L 10,10 L 0,10 Z" Fill="White" Stretch="Fill" Width="10" Height="10"/>
-                    </Button>
-                    <Button Foreground="White" Height="32" Width="40" Cursor="Hand" Click="Button_Click">
-                        <Button.Template>
-                            <ControlTemplate TargetType="Button">
-                                <Border Background="#4CAF50" CornerRadius="6">
-                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                            </ControlTemplate>
-                        </Button.Template>
-                        <Path Data="M 0,0 L 0,14 L 10,7 Z" Fill="White" Stretch="Fill" Width="10" Height="12"/>
-                    </Button>
-                </StackPanel>
-
                 <StackPanel x:Name="PanelRequestActions" Orientation="Horizontal" HorizontalAlignment="Right" Visibility="Collapsed">
                     <Button Content="Reddet" Background="#C62828" Foreground="White" Height="32" Width="70" Margin="0,0,8,0" 
                             FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="BtnReject_Click">

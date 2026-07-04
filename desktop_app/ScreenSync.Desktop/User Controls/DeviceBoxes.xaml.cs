@@ -53,7 +53,7 @@ namespace ScreenSync.Desktop.User_Controls
                 MainBorder.BorderThickness = new Thickness(2); // Zarif ama görünür bir kalınlık
 
                 // 2. Normal butonları gizle, Onay/Red butonlarını göster (Aynı kalıyor)
-                PanelNormalActions.Visibility = Visibility.Collapsed;
+                //PanelNormalActions.Visibility = Visibility.Collapsed;
                 PanelRequestActions.Visibility = Visibility.Visible;
 
                 // 3. Meksika dalgasını başlat (Aynı kalıyor)
@@ -66,7 +66,7 @@ namespace ScreenSync.Desktop.User_Controls
                 MainBorder.BorderThickness = new Thickness(0);
 
                 // (Geri kalan temizlik işlemleri aynı kalıyor)
-                PanelNormalActions.Visibility = Visibility.Visible;
+                //PanelNormalActions.Visibility = Visibility.Visible;
                 PanelRequestActions.Visibility = Visibility.Collapsed;
                 _waveTimer.Stop();
                 SetStatus(CurrentStatus);
