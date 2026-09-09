@@ -32,16 +32,48 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <Style x:Key="SegmentedRadioStyle" TargetType="RadioButton">
+            <Setter Property="Background" Value="#121212"/>
+            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="8" Margin="2">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Background" Value="#4CAF50"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="IsMouseOver" Value="True"/>
+                        <Condition Property="IsChecked" Value="False"/>
+                    </MultiTrigger.Conditions>
+                    <Setter Property="Background" Value="#2A2A2A"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </MultiTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid Background="#121212" Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <Grid Grid.Row="0" Margin="0,0,0,20">
-
             <Border HorizontalAlignment="Left" Background="#252525" Padding="25,12" CornerRadius="25">
                 <Border.Effect>
                     <DropShadowEffect Color="Black" BlurRadius="10" Opacity="0.4" ShadowDepth="4"/>
@@ -54,7 +86,7 @@
                     <DropShadowEffect Color="Black" BlurRadius="10" Opacity="0.4" ShadowDepth="4"/>
                 </Border.Effect>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="BtnListenPort" Content="Cihaz Ara" Click="BtnListenPort_Click" Margin="0,0,20,0" Background="#2C2C2C" Height="28" Width="63"/>
+                    <Button x:Name="BtnListenPort" Content="Bağlantıyı Başlat" Click="BtnListenPort_Click" Margin="0,0,20,0" Background="#4CAF50" Height="28" Width="120"/>
 
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
                         <Ellipse x:Name="StatusLight" Width="12" Height="12" Fill="#F44336" Margin="0,0,8,0">
@@ -62,14 +94,57 @@
                                 <DropShadowEffect Color="#F44336" BlurRadius="8" Opacity="0.8" ShadowDepth="0"/>
                             </Ellipse.Effect>
                         </Ellipse>
-                        <TextBlock x:Name="TxtLightStatus" Text="Veri Bekleniyor..." Foreground="#B3B3B3" FontSize="14" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtLightStatus" Text="Hazır" Foreground="#B3B3B3" FontSize="14" VerticalAlignment="Center"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
-
         </Grid>
 
-        <Grid Grid.Row="1">
+        <!-- BAĞLANTI TERCİHLERİ PANELİ -->
+        <Border Grid.Row="1" Background="#1E1E1E" CornerRadius="16" Margin="0,0,0,20" Padding="20,15">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- 1. Bağlantı Türü -->
+                <StackPanel Grid.Column="0" Orientation="Vertical" HorizontalAlignment="Center">
+                    <TextBlock Text="Bağlantı Türü" Foreground="#A0A0A0" FontSize="13" Margin="0,0,0,8" HorizontalAlignment="Center"/>
+                    <Border Background="#121212" CornerRadius="10" Padding="2">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="RbWireless" Content="Wi-Fi (Kablosuz)" Style="{StaticResource SegmentedRadioStyle}" GroupName="Transport" IsChecked="True"/>
+                            <RadioButton x:Name="RbWired" Content="USB (Kablolu)" Style="{StaticResource SegmentedRadioStyle}" GroupName="Transport"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- 2. Hedef Cihaz -->
+                <StackPanel Grid.Column="1" Orientation="Vertical" HorizontalAlignment="Center">
+                    <TextBlock Text="Karşıdaki Cihaz" Foreground="#A0A0A0" FontSize="13" Margin="0,0,0,8" HorizontalAlignment="Center"/>
+                    <Border Background="#121212" CornerRadius="10" Padding="2">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="RbTargetPhone" Content="Telefon" Style="{StaticResource SegmentedRadioStyle}" GroupName="Target" IsChecked="True"/>
+                            <RadioButton x:Name="RbTargetPC" Content="Bilgisayar" Style="{StaticResource SegmentedRadioStyle}" GroupName="Target"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- 3. Rol (Sender/Receiver) -->
+                <StackPanel Grid.Column="2" Orientation="Vertical" HorizontalAlignment="Center">
+                    <TextBlock Text="Benim Rolüm" Foreground="#A0A0A0" FontSize="13" Margin="0,0,0,8" HorizontalAlignment="Center"/>
+                    <Border Background="#121212" CornerRadius="10" Padding="2">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="RbRoleSender" Content="Ekranı Paylaş" Style="{StaticResource SegmentedRadioStyle}" GroupName="Role" IsChecked="True"/>
+                            <RadioButton x:Name="RbRoleReceiver" Content="Ekranı İzle" Style="{StaticResource SegmentedRadioStyle}" GroupName="Role"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="*"/>

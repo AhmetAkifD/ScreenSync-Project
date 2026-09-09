@@ -1,4 +1,4 @@
-﻿using ScreenSync.Desktop.Network;
+using ScreenSync.Desktop.Network;
 using ScreenSync.Desktop.Services;
 using ScreenSync.Desktop.Tools;
 using ScreenSync.Network;
@@ -42,21 +42,29 @@ namespace ScreenSync.Desktop
             _tcpServer?.Stop();
 
             var newServer = new TcpServer();
-            var newDecoder = new FFmpegDecoder();
+
+            try 
+            {
+                var newDecoder = new FFmpegDecoder();
+                newServer.OnFrameReceived += (frameData) =>
+                {
+                    if (_tcpServer == newServer)
+                    {
+                        var image = newDecoder.DecodeFrame(frameData);
+                        if (image != null) OnImageDecoded?.Invoke(image);
+                    }
+                };
+                _decoder = newDecoder;
+            }
+            catch (Exception ex)
+            {
+                LogService.Error($"FFmpeg başlatılamadı: {ex.Message}");
+            }
 
             newServer.OnDisconnected += () => { if (_tcpServer == newServer) TriggerStreamStopped(); };
             newServer.OnError += (err) => { if (_tcpServer == newServer) TriggerStatusChanged($"Video Hatası: {err}"); };
-            newServer.OnFrameReceived += (frameData) =>
-            {
-                if (_tcpServer == newServer)
-                {
-                    var image = newDecoder.DecodeFrame(frameData);
-                    if (image != null) OnImageDecoded?.Invoke(image);
-                }
-            };
 
             _tcpServer = newServer;
-            _decoder = newDecoder;
         }
 
         // --- 1. AĞ DİNLEME (LISTENER) METOTLARI ---

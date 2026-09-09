@@ -105,16 +105,45 @@ namespace ScreenSync.Desktop
             };
         }
 
-        private void BtnListenPort_Click(object sender, RoutedEventArgs e)
+        private async void BtnListenPort_Click(object sender, RoutedEventArgs e)
         {
-            if (_tools.SetupAdbPortForwarding())
-            {
-                _ = _syncManager.StartCommandServer(VIDEO_PORT);
+            // Yeni Mimarideki RadioButton Durumlarını Oku
+            bool isWireless = RbWireless.IsChecked == true;
+            bool isSender = RbRoleSender.IsChecked == true;
+            bool isTargetPhone = RbTargetPhone.IsChecked == true;
 
-                BtnListenPort.IsEnabled = false;
-                _activeDeviceBox?.SetConnection(DeviceBoxes.ConnectionType.Usb);
-                
-                LogService.Info($"{VIDEO_PORT} portu dinleniyor.");
+            if (isWireless)
+            {
+                // KABLOSUZ (Wi-Fi) BAĞLANTI
+                if (isSender && isTargetPhone)
+                {
+                    LogService.Info("Kablosuz PC -> Telefon yayın başlatılıyor (Sunucu Modu: 50005)");
+                    _tools.SetSystemStatus("Wi-Fi Yayını Başladı", System.Windows.Media.Brushes.Green);
+                    BtnListenPort.IsEnabled = false;
+
+                    // Yeni Mimari Servislerini Başlat
+                    var transport = new ScreenSync.Network.Transport.WirelessTransport();
+                    var senderService = new ScreenSync.Desktop.Features.Sender.SenderService(transport);
+                    
+                    await senderService.StartCaptureAsync();
+                }
+                else
+                {
+                    LogService.Info("Diğer senaryolar henüz kodlanmadı. Sadece 'Kablosuz', 'Telefon' ve 'Ekranı Paylaş' senaryosu çalışır.");
+                }
+            }
+            else
+            {
+                // KABLOLU (USB / ADB) Eski Mantık
+                if (_tools.SetupAdbPortForwarding())
+                {
+                    _ = _syncManager.StartCommandServer(VIDEO_PORT);
+
+                    BtnListenPort.IsEnabled = false;
+                    _activeDeviceBox?.SetConnection(DeviceBoxes.ConnectionType.Usb);
+                    
+                    LogService.Info($"{VIDEO_PORT} portu dinleniyor.");
+                }
             }
         }
 

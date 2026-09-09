@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'dart:typed_data'; // Uint8List için
 import 'package:mobile_app/log_files_page.dart';
 import 'package:mobile_app/settings_bottom_sheet.dart';
 import 'log_file_manager.dart';
 import 'log_service.dart';
 import 'mainPageTools.dart'; // İş mantığını (Tools) dahil et
 import 'log_page.dart'; // Log sayfasını dahil et
+import 'custom_sliding_switch.dart';
+import 'core/network/transport/wireless_transport.dart';
+import 'features/receiver/receiver_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,10 +47,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   double activeBitrate = 4.0;
   String activeResolution = '720p';
   bool isUsbModeSelected = false;
+  bool isTargetPCSelected = false; // false = Telefon, true = PC
+  bool isReceiverSelected = false; // false = Gönderici, true = Alıcı
   late AnimationController _breathingController;
   late Animation<double> _breathingAnimation;
   bool _showAppBorder = false;
   bool isMicMuted = true;
+
+  // Yeni Mimari - Alıcı Servisleri
+  ReceiverService? _receiverService;
+  bool _isReceivingStream = false;
 
   @override
   void initState() {
@@ -97,120 +107,135 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       backgroundColor: const Color(0xFF121212),
       body: Stack(
           children: [
+            // --- YENİ EFEKT 0: GELEN EKRAN YAYINI (ALICI MODU İÇİN) ---
+            if (_isReceivingStream && _receiverService != null)
+              Positioned.fill(
+                child: ValueListenableBuilder<Uint8List?>(
+                  valueListenable: _receiverService!.currentFrame,
+                  builder: (context, frame, child) {
+                    if (frame == null || frame.isEmpty) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: Colors.white),
+                      );
+                    }
+                    return Image.memory(
+                      frame,
+                      fit: BoxFit.contain, // Ekranı taşmadan sığdır
+                      gaplessPlayback: true, // Titremeyi (flicker) engeller
+                    );
+                  },
+                ),
+              ),
+
             // --- YENİ EFEKT 1: AMBİYANS IŞIĞI (ARKAPLAN GÖLGESİ) ---
             // Durum rengine göre yumuşakça renk değiştiren ışık huzmesi
-            AnimatedBuilder(
-              animation: _breathingAnimation,
-              builder: (context, child) {
-                return Container(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: const Alignment(0, -0.4),
-                      radius: _breathingAnimation.value,
-                      colors: [
-                        tools.statusColor.withOpacity(0.25), // Işığın merkez gücü
-                        const Color(0xFF121212), // Karanlığa karışma
-                      ],
-                      stops: const [0.1, 0.8],
+            if (!_isReceivingStream) // Yayın izleniyorken ambiyans ışığını gizle
+              AnimatedBuilder(
+                animation: _breathingAnimation,
+                builder: (context, child) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: const Alignment(0, -0.4),
+                        radius: _breathingAnimation.value,
+                        colors: [
+                          tools.statusColor.withOpacity(0.25), // Işığın merkez gücü
+                          const Color(0xFF121212), // Karanlığa karışma
+                        ],
+                        stops: const [0.1, 0.8],
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              ),
 
             // --- YENİ EFEKT 2: HAYALET TİPOGRAFİ (SİSTEM MESAJI) ---
             // Arkada süzülen, büyük ve yarı şeffaf durum yazısı
-            Align(
-              alignment: const Alignment(0, -0.45),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 500),
-                  child: Text(
-                    tools.statusText.toUpperCase(),
-                    key: ValueKey(tools.statusText), // Animasyonun tetiklenmesi için gerekli
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 32, // Oldukça büyük
-                      fontWeight: FontWeight.w900, // Çok kalın
-                      letterSpacing: 4.0, // Harf araları açık, sinematik bir his
-                      color: tools.statusColor.withOpacity(0.35), // Yarı şeffaf, arka plana gömülü
+            if (!_isReceivingStream)
+              Align(
+                alignment: const Alignment(0, -0.45),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 500),
+                    child: Text(
+                      tools.statusText.toUpperCase(),
+                      key: ValueKey(tools.statusText), // Animasyonun tetiklenmesi için gerekli
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 32, // Oldukça büyük
+                        fontWeight: FontWeight.w900, // Çok kalın
+                        letterSpacing: 4.0, // Harf araları açık, sinematik bir his
+                        color: tools.statusColor.withOpacity(0.35), // Yarı şeffaf, arka plana gömülü
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
 
-            // 1. KATMAN: ANA İÇERİK (Arayüzünün geri kalanı)
+            // Kapat Butonu (Sadece yayın izlenirken görünür)
+            if (_isReceivingStream)
+              Positioned(
+                bottom: 40,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: FloatingActionButton(
+                    backgroundColor: Colors.redAccent,
+                    onPressed: () {
+                      _receiverService?.stopReceiving();
+                      setState(() {
+                        _isReceivingStream = false;
+                        tools.statusText = "Yayın Durduruldu";
+                        tools.statusColor = Colors.grey;
+                      });
+                    },
+                    child: const Icon(Icons.close_rounded, color: Colors.white, size: 30),
+                  ),
+                ),
+              ),
+
             // --- 1. KATMAN: ANA İÇERİK (Arayüzünün geri kalanı) ---
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Column(
+            if (!_isReceivingStream)
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Column(
                     children: [
                       const Spacer(flex: 4), // Üst boşluk
 
-                      // --- YENİ 1: KAYDIRMALI MOD ŞALTERİ (TOGGLE SWITCH) ---
-                      Container(
-                        width: 220,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF252525),
-                          borderRadius: BorderRadius.circular(25),
-                          boxShadow: const [
-                            BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4)),
-                          ],
-                        ),
-                        child: Stack(
-                          children: [
-                            AnimatedPositioned(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                              top: 4,
-                              bottom: 4,
-                              left: isUsbModeSelected ? 110 : 4,
-                              right: isUsbModeSelected ? 4 : 110,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.deepPurpleAccent,
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                              ),
-                            ),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onTap: () => setState(() => isUsbModeSelected = false),
-                                    child: Center(
-                                      child: Text("Wi-Fi", style: TextStyle(
-                                        color: !isUsbModeSelected ? Colors.white : Colors.white54,
-                                        fontWeight: FontWeight.bold,
-                                      )),
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: GestureDetector(
-                                    behavior: HitTestBehavior.opaque,
-                                    onTap: () => setState(() => isUsbModeSelected = true),
-                                    child: Center(
-                                      child: Text("USB", style: TextStyle(
-                                        color: isUsbModeSelected ? Colors.white : Colors.white54,
-                                        fontWeight: FontWeight.bold,
-                                      )),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+                      // --- BAĞLANTI TERCİHLERİ ---
+                      const Text("Bağlantı Türü", style: TextStyle(color: Colors.white54, fontSize: 12)),
+                      const SizedBox(height: 4),
+                      CustomSlidingSwitch(
+                        textLeft: "Wi-Fi",
+                        textRight: "USB",
+                        isRightSelected: isUsbModeSelected,
+                        onChanged: (val) => setState(() => isUsbModeSelected = val),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
+
+                      const Text("Karşıdaki Cihaz", style: TextStyle(color: Colors.white54, fontSize: 12)),
+                      const SizedBox(height: 4),
+                      CustomSlidingSwitch(
+                        textLeft: "Telefon",
+                        textRight: "Bilgisayar",
+                        isRightSelected: isTargetPCSelected,
+                        onChanged: (val) => setState(() => isTargetPCSelected = val),
+                      ),
+                      const SizedBox(height: 12),
+
+                      const Text("Benim Rolüm", style: TextStyle(color: Colors.white54, fontSize: 12)),
+                      const SizedBox(height: 4),
+                      CustomSlidingSwitch(
+                        textLeft: "Ekranı Paylaş",
+                        textRight: "Ekranı İzle",
+                        isRightSelected: isReceiverSelected,
+                        onChanged: (val) => setState(() => isReceiverSelected = val),
+                      ),
+                      const SizedBox(height: 24),
 
                       // --- YENİ 2: DİNAMİK BAĞLANTI BUTONU ---
                       TextButton.icon(
@@ -218,7 +243,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                           if (isUsbModeSelected) {
                             tools.enableUsbMode(context);
                           } else {
-                            tools.toggleDiscovery(context);
+                            if (isReceiverSelected && isTargetPCSelected) {
+                                // YENİ MİMARİ: Bilgisayardan telefona görüntü al!
+                                _showIpInputDialog(context);
+                            } else {
+                                // ESKİ MİMARİ
+                                tools.toggleDiscovery(context);
+                            }
                           }
                         },
                         icon: Icon(
@@ -226,7 +257,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                             color: Colors.white70
                         ),
                         label: Text(
-                          isUsbModeSelected ? "Ara" : (tools.isDiscovering ? "Aramayı Durdur" : "Ara"),
+                          isUsbModeSelected ? "Ara" : (tools.isDiscovering ? "Aramayı Durdur" : "Bağlan (Ara)"),
                           style: const TextStyle(color: Colors.white, fontSize: 16),
                         ),
                         style: TextButton.styleFrom(
@@ -429,5 +460,63 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ]
       ),
     );
+  }
+
+  // --- YENİ MİMARİ: IP GİRİŞ DİYALOĞU ---
+  void _showIpInputDialog(BuildContext context) {
+    final TextEditingController ipController = TextEditingController(text: "192.168.1.");
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Bilgisayarın IP Adresi"),
+        content: TextField(
+          controller: ipController,
+          decoration: const InputDecoration(hintText: "Örn: 192.168.1.50"),
+          keyboardType: TextInputType.number,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("İptal"),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _startReceivingFromPC(ipController.text);
+            },
+            child: const Text("Bağlan"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _startReceivingFromPC(String ip) async {
+    try {
+      setState(() {
+        tools.statusText = "PC'ye Bağlanılıyor...";
+        tools.statusColor = Colors.blue;
+      });
+
+      final transport = WirelessTransport(ipAddress: ip, port: 50005);
+      await transport.connect();
+
+      _receiverService = ReceiverService(transport: transport);
+      _receiverService!.startReceiving();
+
+      setState(() {
+        _isReceivingStream = true;
+        tools.statusText = "Ekran Alınıyor";
+        tools.statusColor = Colors.green;
+      });
+      LogService.info("PC'ye ($ip) bağlanıldı ve görüntü akışı başlatıldı.");
+    } catch (e) {
+      LogService.error("Alıcı hatası: $e");
+      setState(() {
+        tools.statusText = "Bağlantı Hatası";
+        tools.statusColor = Colors.red;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Bağlanılamadı: $e")));
+    }
   }
 }
