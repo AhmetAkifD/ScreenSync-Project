@@ -8,6 +8,7 @@ import 'mainPageTools.dart'; // İş mantığını (Tools) dahil et
 import 'log_page.dart'; // Log sayfasını dahil et
 import 'custom_sliding_switch.dart';
 import 'core/network/transport/wireless_transport.dart';
+import 'core/network/transport/udp_transport.dart';
 import 'features/receiver/receiver_service.dart';
 
 Future<void> main() async {
@@ -49,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   bool isUsbModeSelected = false;
   bool isTargetPCSelected = false; // false = Telefon, true = PC
   bool isReceiverSelected = false; // false = Gönderici, true = Alıcı
+  bool isUdpSelected = true; // YENİ: TCP/UDP Anahtarı
   late AnimationController _breathingController;
   late Animation<double> _breathingAnimation;
   bool _showAppBorder = false;
@@ -234,6 +236,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         textRight: "Ekranı İzle",
                         isRightSelected: isReceiverSelected,
                         onChanged: (val) => setState(() => isReceiverSelected = val),
+                      ),
+                      const SizedBox(height: 12),
+
+                      const Text("Ağ Protokolü", style: TextStyle(color: Colors.white54, fontSize: 12)),
+                      const SizedBox(height: 4),
+                      CustomSlidingSwitch(
+                        textLeft: "TCP (Güvenilir)",
+                        textRight: "UDP (Akıcı)",
+                        isRightSelected: isUdpSelected,
+                        onChanged: (val) => setState(() => isUdpSelected = val),
                       ),
                       const SizedBox(height: 24),
 
@@ -498,7 +510,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         tools.statusColor = Colors.blue;
       });
 
-      final transport = WirelessTransport(ipAddress: ip, port: 50005);
+      var transport;
+      if (isUdpSelected) {
+        transport = UdpTransport(ipAddress: ip, port: 50005);
+      } else {
+        transport = WirelessTransport(ipAddress: ip, port: 50005);
+      }
+      
       await transport.connect();
 
       _receiverService = ReceiverService(transport: transport);

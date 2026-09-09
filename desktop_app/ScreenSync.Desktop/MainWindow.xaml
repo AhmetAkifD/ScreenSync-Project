@@ -70,6 +70,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -144,7 +145,48 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Row="2">
+        <!-- YAYIN AYARLARI (OPTİMİZASYON) PANELİ -->
+        <Border Grid.Row="2" Background="#1E1E1E" CornerRadius="16" Margin="0,0,0,20" Padding="20,15">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- 1. Çözünürlük -->
+                <StackPanel Grid.Column="0" Orientation="Vertical" HorizontalAlignment="Center">
+                    <TextBlock Text="Yayın Çözünürlüğü" Foreground="#A0A0A0" FontSize="13" Margin="0,0,0,8" HorizontalAlignment="Center"/>
+                    <ComboBox x:Name="CmbResolution" Width="150" SelectedIndex="1" Background="#121212" Foreground="Black">
+                        <ComboBoxItem Content="1080p (Yüksek)"/>
+                        <ComboBoxItem Content="720p (Dengeli)"/>
+                        <ComboBoxItem Content="480p (Hızlı)"/>
+                    </ComboBox>
+                </StackPanel>
+
+                <!-- 2. Görüntü Kalitesi -->
+                <StackPanel Grid.Column="1" Orientation="Vertical" HorizontalAlignment="Center">
+                    <TextBlock Text="JPEG Kalitesi (%)" Foreground="#A0A0A0" FontSize="13" Margin="0,0,0,8" HorizontalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Slider x:Name="SldQuality" Minimum="10" Maximum="100" Value="50" Width="120" Margin="0,0,10,0"/>
+                        <TextBlock x:Name="TxtQuality" Text="{Binding ElementName=SldQuality, Path=Value, StringFormat={}{0:0}}" Foreground="White" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- 3. Ağ Protokolü -->
+                <StackPanel Grid.Column="2" Orientation="Vertical" HorizontalAlignment="Center">
+                    <TextBlock Text="Ağ Protokolü (Aktarım)" Foreground="#A0A0A0" FontSize="13" Margin="0,0,0,8" HorizontalAlignment="Center"/>
+                    <Border Background="#121212" CornerRadius="10" Padding="2">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="RbProtoTCP" Content="TCP (Güvenilir)" Style="{StaticResource SegmentedRadioStyle}" GroupName="Protocol"/>
+                            <RadioButton x:Name="RbProtoUDP" Content="UDP (Akıcı)" Style="{StaticResource SegmentedRadioStyle}" GroupName="Protocol" IsChecked="True"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="3">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="*"/>

@@ -111,19 +111,34 @@ namespace ScreenSync.Desktop
             bool isWireless = RbWireless.IsChecked == true;
             bool isSender = RbRoleSender.IsChecked == true;
             bool isTargetPhone = RbTargetPhone.IsChecked == true;
+            
+            bool isUdp = RbProtoUDP.IsChecked == true;
+
+            int targetHeight = 720;
+            if (CmbResolution.SelectedIndex == 0) targetHeight = 1080;
+            if (CmbResolution.SelectedIndex == 2) targetHeight = 480;
+
+            long jpegQuality = (long)SldQuality.Value;
 
             if (isWireless)
             {
                 // KABLOSUZ (Wi-Fi) BAĞLANTI
                 if (isSender && isTargetPhone)
                 {
-                    LogService.Info("Kablosuz PC -> Telefon yayın başlatılıyor (Sunucu Modu: 50005)");
+                    LogService.Info($"Kablosuz PC -> Telefon yayın başlatılıyor ({(isUdp ? "UDP" : "TCP")} - 50005, {targetHeight}p, Kalite: {jpegQuality})");
                     _tools.SetSystemStatus("Wi-Fi Yayını Başladı", System.Windows.Media.Brushes.Green);
                     BtnListenPort.IsEnabled = false;
 
                     // Yeni Mimari Servislerini Başlat
-                    var transport = new ScreenSync.Network.Transport.WirelessTransport();
-                    var senderService = new ScreenSync.Desktop.Features.Sender.SenderService(transport);
+                    ScreenSync.Network.Transport.ITransport transport;
+                    if (isUdp) transport = new ScreenSync.Network.Transport.UdpTransport();
+                    else transport = new ScreenSync.Network.Transport.WirelessTransport();
+
+                    var senderService = new ScreenSync.Desktop.Features.Sender.SenderService(transport)
+                    {
+                        TargetHeight = targetHeight,
+                        JpegQuality = jpegQuality
+                    };
                     
                     await senderService.StartCaptureAsync();
                 }
